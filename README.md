@@ -76,4 +76,37 @@ bun run preview
 - `StorageService.test.ts`: Integration tests (23 tests)
 - Performance verified: 500 slides insert in <2 seconds
 
-### Next: Milestone 2 - EPUB Parsing Spike
+### ✅ Milestone 2 - EPUB Parsing Spike (COMPLETE)
+
+**ParserService** (`src/parser/ParserService.ts`):
+- EPUB loading from ArrayBuffer (no network required)
+- Chapter enumeration via epub.js spine
+- XHTML extraction with visible text parsing
+- HTML stripping using DOMPurify (removes scripts, styles, layout tags)
+- Text normalization (collapse whitespace, remove zero-width chars)
+- Paragraph boundary preservation (`\n\n`)
+- Performance measurement with progress callbacks
+
+**Text Quality**:
+- Deterministic output for identical input
+- Stable line breaks across runs
+- No CSS/layout artifacts in extracted text
+- Chapter titles extracted from heading elements
+
+**Performance**:
+- Parser tested with real EPUBs (Alice in Wonderland, Cyropaedia)
+- Browser-based test harness: `parser-test.html`
+- Meets performance targets (<1500ms desktop, <3000ms mobile)
+- Progress tracking for long operations
+
+**Key Finding**:
+- epub.js requires browser environment (uses DOM APIs)
+- Works well in browser context with Vite dev server
+- Suitable for PWA deployment model
+
+**Test Harness**:
+- Manual validation page at `/parser-test.html`
+- Upload EPUB → view parsed chapters, metadata, performance
+- Console logging for detailed inspection
+
+### Next: Milestone 3 - Chunking Engine (~50 words/slide)
