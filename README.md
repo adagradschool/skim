@@ -49,4 +49,31 @@ bun run preview
 - **Bundle size**: ~61KB gzipped (target: <500KB) ✓
 - **Preview works offline**: Service worker configured ✓
 
-### Next: Milestone 1 - Domain Model & IndexedDB Schema
+### ✅ Milestone 1 - Domain Model & IndexedDB Schema (COMPLETE)
+
+**Database Schema**:
+- 5 IndexedDB object stores: `books`, `bookAssets`, `slides`, `progress`, `kv`
+- Composite keys for `bookAssets` and `slides`
+- Indexes for efficient querying: `by-modified`, `by-book`, `by-chapter`
+- Versioned migrations (v1)
+
+**StorageService** (`src/db/StorageService.ts`):
+- Full CRUD operations for all stores
+- Cascade delete (removing a book deletes all related data)
+- Batch operations with chunked inserts (100 slides per chunk)
+- Progress tracking with auto-timestamps
+- KV store for app settings
+- Storage quota estimation
+
+**StorageMock** (`src/db/StorageMock.ts`):
+- In-memory implementation for fast unit tests
+- Data isolation (returns copies, not references)
+
+**Testing**:
+- 64 tests, all passing (121 expect() calls)
+- `db.test.ts`: Schema and low-level operations (23 tests)
+- `StorageMock.test.ts`: Mock implementation (18 tests)
+- `StorageService.test.ts`: Integration tests (23 tests)
+- Performance verified: 500 slides insert in <2 seconds
+
+### Next: Milestone 2 - EPUB Parsing Spike
