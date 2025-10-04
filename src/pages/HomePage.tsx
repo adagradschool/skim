@@ -13,6 +13,7 @@ import { storageService } from '@/db/StorageService'
 import type { Book, Progress } from '@/db/types'
 import { importService, type ImportProgressUpdate } from '@/importer/ImportService'
 import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ReaderPage } from '@/pages/ReaderPage'
 
 interface LibraryEntry {
   id: string
@@ -45,6 +46,7 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [isUploadOpen, setUploadOpen] = useState(false)
   const [deleteBookId, setDeleteBookId] = useState<string | null>(null)
+  const [readingBookId, setReadingBookId] = useState<string | null>(null)
 
   const coverUrlsRef = useRef<string[]>([])
 
@@ -117,6 +119,20 @@ export function HomePage() {
     }
   }, [refreshLibrary])
 
+  const handleOpenBook = useCallback((bookId: string) => {
+    setReadingBookId(bookId)
+  }, [])
+
+  const handleExitReader = useCallback(() => {
+    setReadingBookId(null)
+    refreshLibrary() // Refresh to update progress
+  }, [refreshLibrary])
+
+  // Show reader if a book is selected
+  if (readingBookId) {
+    return <ReaderPage bookId={readingBookId} onExit={handleExitReader} />
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="flex items-center justify-center px-6 pt-6 pb-4">
@@ -143,7 +159,11 @@ export function HomePage() {
           <ul className="space-y-4">
             {entries.map((entry) => (
               <li key={entry.id}>
-                <LibraryCard entry={entry} onDelete={() => setDeleteBookId(entry.id)} />
+                <LibraryCard
+                  entry={entry}
+                  onDelete={() => setDeleteBookId(entry.id)}
+                  onOpen={() => handleOpenBook(entry.id)}
+                />
               </li>
             ))}
           </ul>
@@ -531,13 +551,17 @@ function statusIcon(status: StepStatus) {
 interface LibraryCardProps {
   entry: LibraryEntry
   onDelete: () => void
+  onOpen: () => void
 }
 
-function LibraryCard({ entry, onDelete }: LibraryCardProps) {
+function LibraryCard({ entry, onDelete, onOpen }: LibraryCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <article className="relative cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 hover:bg-slate-900">
+    <article
+      className="relative cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 hover:bg-slate-900"
+      onClick={onOpen}
+    >
       <div className="absolute right-2 top-2 z-10">
         <button
           type="button"
