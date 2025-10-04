@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
 import type { Slide } from '@/db/types'
-import { AlertTriangle, Loader2, Settings } from 'lucide-react'
+import { AlertTriangle, Loader2, Settings, ArrowLeft } from 'lucide-react'
 
 interface ReaderPageProps {
   bookId: string
@@ -15,7 +15,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [bookTitle, setBookTitle] = useState<string>('')
-  const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(true)
+  const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(false) // Will be loaded from storage
   const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(9)
   const [showSettings, setShowSettings] = useState(false)
   const [showControls, setShowControls] = useState(false)
@@ -24,8 +24,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const [progressPercent, setProgressPercent] = useState(0)
   const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('inter')
 
-  // Touch state for swipe detection
-  const touchStartY = useRef<number | null>(null)
+  // Touch state for tap/swipe detection
   const touchStartX = useRef<number | null>(null)
   const touchStartTime = useRef<number>(0)
   const autoAdvanceTimerRef = useRef<number | null>(null)
@@ -45,6 +44,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         if (book) {
           setBookTitle(book.title)
         }
+
+        // Load auto-advance setting from storage (default to true if not set)
+        const autoAdvanceSetting = await storageService.getKV('autoAdvanceEnabled')
+        setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
 
         // Get progress to determine starting slide
         const progress = await storageService.getProgress(bookId)
@@ -184,7 +187,6 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
-    touchStartY.current = touch.clientY
     touchStartX.current = touch.clientX
     touchStartTime.current = Date.now()
     isHolding.current = true
@@ -200,49 +202,43 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       const wasHolding = isHolding.current
       isHolding.current = false
 
-      if (touchStartY.current === null || touchStartX.current === null) {
+      if (touchStartX.current === null) {
         return
       }
 
       const touch = e.changedTouches[0]
       if (!touch) return
 
-      const deltaY = touch.clientY - touchStartY.current
       const deltaX = touch.clientX - touchStartX.current
       const touchDuration = Date.now() - touchStartTime.current
 
+      // Get tap position for zone-based navigation
+      const tapX = touch.clientX
+      const screenWidth = window.innerWidth
+
       // Reset touch state
-      touchStartY.current = null
       touchStartX.current = null
 
-      // Minimum swipe distance threshold (in pixels)
-      const SWIPE_THRESHOLD = 50
+      // Check for tap (small movement and quick)
+      if (Math.abs(deltaX) < 10 && touchDuration < 300) {
+        // Small movement and quick - treat as tap
+        // Left third = previous, right third = next, middle = toggle controls
+        const leftThird = screenWidth / 3
+        const rightThird = (screenWidth * 2) / 3
 
-      // Check if horizontal swipe (left swipe = go back to home)
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-        if (deltaX > 0) {
-          // Swipe right (left-to-right) - go back to home
-          onExit()
-        }
-        // Resume auto-swipe after swipe
-        setIsPaused(false)
-        // Swipe left (right-to-left) - do nothing for now
-      } else if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > SWIPE_THRESHOLD) {
-        // Vertical swipe is dominant
-        if (deltaY < 0) {
-          // Swipe up - go to next slide
-          goToNext()
-        } else {
-          // Swipe down - go to previous slide
+        if (tapX < leftThird) {
+          // Tap on left - go to previous slide, resume auto-swipe
           goToPrevious()
+          setIsPaused(false)
+        } else if (tapX > rightThird) {
+          // Tap on right - go to next slide, resume auto-swipe
+          goToNext()
+          setIsPaused(false)
+        } else {
+          // Tap in middle - toggle controls, DON'T change pause state
+          setShowControls((prev) => !prev)
+          // Keep current pause state - don't call setIsPaused
         }
-        // Resume auto-swipe after swipe
-        setIsPaused(false)
-      } else if (Math.abs(deltaY) < 10 && Math.abs(deltaX) < 10 && touchDuration < 200) {
-        // Small movement and quick - treat as tap to show controls
-        setShowControls(true)
-        // Resume auto-swipe after tap
-        setIsPaused(false)
       } else {
         // Any other touch end - resume auto-swipe
         setIsPaused(false)
@@ -280,9 +276,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
 
   return (
     <div
-      className="relative flex h-screen flex-col bg-slate-950 text-slate-100"
+      className="relative flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      style={{ touchAction: 'none' }}
     >
       {/* Thin progress bar at top */}
       <div className="absolute left-0 right-0 top-0 z-20 h-1 bg-slate-900">
@@ -292,8 +289,8 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         />
       </div>
 
-      {/* Main slide content area - full screen, centered */}
-      <main className="flex flex-1 flex-col items-center justify-center px-8 py-20">
+      {/* Main slide content area - full screen, centered, non-scrollable */}
+      <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-20">
         <div className="w-full max-w-2xl flex-1 flex items-center">
           <p
             className="text-xl leading-relaxed text-slate-100 sm:text-2xl sm:leading-relaxed"
@@ -316,21 +313,36 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         )}
       </main>
 
-      {/* Settings button - top right, only show when controls are visible */}
+      {/* Top bar with back button and settings - only show when controls are visible */}
       {showControls && (
-        <div className="absolute right-4 top-4 z-10">
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
-            aria-label="Settings"
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowSettings(!showSettings)
-            }}
-          >
-            <Settings className="h-5 w-5" />
-          </button>
-        </div>
+        <>
+          <div className="absolute left-4 top-4 z-10">
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
+              aria-label="Back to Library"
+              onClick={(e) => {
+                e.stopPropagation()
+                onExit()
+              }}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="absolute right-4 top-4 z-10">
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
+              aria-label="Settings"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowSettings(!showSettings)
+              }}
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+          </div>
+        </>
       )}
 
       {/* Footer with interactive progress slider - only show when controls are visible */}
@@ -409,7 +421,12 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                 type="button"
                 role="switch"
                 aria-checked={isAutoSwipeEnabled}
-                onClick={() => setIsAutoSwipeEnabled(!isAutoSwipeEnabled)}
+                onClick={async () => {
+                  const newValue = !isAutoSwipeEnabled
+                  setIsAutoSwipeEnabled(newValue)
+                  // Save to IndexedDB
+                  await storageService.setKV('autoAdvanceEnabled', newValue)
+                }}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
                   isAutoSwipeEnabled ? 'bg-indigo-500' : 'bg-slate-700'
                 }`}
