@@ -150,4 +150,67 @@ bun run preview
 - Expandable chapters show slides in table format
 - Console logging for detailed inspection
 
-### Next: Milestone 4 - UI Shell (Home + Library)
+### ✅ Milestone 6 - PWA & Offline (COMPLETE)
+
+**Goal:** Installable app with offline reading of imported books
+
+**PWA Icons:**
+- Custom logo (triangular pyramid with book icon)
+- Icons: 192x192, 512x512, and 32x32 favicon
+- Both `any` and `maskable` purposes for Android adaptive icons
+
+**Service Worker** (`vite.config.ts`):
+- Workbox configuration with precaching for app shell
+- Runtime caching strategies:
+  - Google Fonts stylesheets (StaleWhileRevalidate)
+  - Google Fonts webfonts (CacheFirst, 1-year expiration)
+  - App shell (NetworkFirst, 1-week expiration)
+- Offline support with navigation fallback
+- Automatic cache cleanup and immediate activation
+
+**Install Prompt** (`src/components/InstallPrompt.tsx`):
+- Custom "Add to Home Screen" UI
+- Slide-up animation after 3 seconds
+- Respects user dismissal (7-day cooldown)
+- Test mode available: add `?testInstall=1` to URL
+- Detects already-installed state
+
+**PWA Manifest:**
+- Name: "Skim - EPUB Reader"
+- Standalone display mode
+- Portrait orientation
+- Black theme (#000000)
+- Absolute icon paths with proper MIME types
+
+**Bundle Stats:**
+- Total: ~210 KB gzipped (under 500 KB target ✓)
+- Service worker precaches: 11 entries (849 KB)
+
+**Testing:**
+```bash
+# Test install prompt UI
+http://localhost:5174/?testInstall=1
+
+# Production build
+bun run build
+bun run preview
+
+# Mobile testing via zrok
+zrok share public http://localhost:4173
+```
+
+**PWA Checklist:**
+- ✅ Complete manifest with icons
+- ✅ Service worker registered with Workbox
+- ✅ Offline capable (app shell cached)
+- ✅ Custom install prompt
+- ✅ HTTPS ready (zrok.io configured)
+- ✅ Mobile viewport and theme color
+- ✅ Apple touch icon support
+- ✅ IndexedDB content works offline
+
+**Known Issues:**
+- PostCSS `@import` warning (does not affect functionality)
+- Bundle size warning (will be addressed in Milestone 8)
+
+### Next: Milestone 7 - UI/UX Polish & Theming

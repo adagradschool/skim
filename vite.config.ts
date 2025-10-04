@@ -10,6 +10,12 @@ export default defineConfig({
     host: true,
     allowedHosts: ['.zrok.io'],
   },
+  preview: {
+    port: 4173,
+    strictPort: false,
+    host: true,
+    allowedHosts: ['.zrok.io'],
+  },
   plugins: [
     react(),
     VitePWA({
@@ -27,37 +33,86 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'icon-192.png',
+            src: '/icon-192.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
           },
           {
-            src: 'icon-512.png',
+            src: '/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'any',
+          },
+          {
+            src: '/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Don't cache IndexedDB or large EPUB files
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
+            // Cache Google Fonts stylesheets
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'google-fonts-cache',
+              cacheName: 'google-fonts-stylesheets',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+            },
+          },
+          {
+            // Cache Google Fonts webfonts
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
             },
           },
+          {
+            // Cache app shell and static assets
+            urlPattern: /^https?:\/\/[^/]+\/?$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
+              },
+            },
+          },
         ],
+        // Clean up old caches on activation
+        cleanupOutdatedCaches: true,
+        // Skip waiting and claim clients immediately
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
