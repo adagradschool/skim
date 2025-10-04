@@ -1,5 +1,5 @@
 export interface ChapterText {
-  chapter: number
+  index: number
   title: string
   text: string
   href: string
@@ -7,9 +7,10 @@ export interface ChapterText {
 
 export interface ParseResult {
   chapters: ChapterText[]
-  metadata: {
+  meta: {
     title?: string
     author?: string
+    coverBlob?: Blob
   }
   parseTimeMs: number
   totalWords: number

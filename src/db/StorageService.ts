@@ -89,6 +89,49 @@ export class StorageService {
     await tx.done
   }
 
+  async saveImportedBundle({
+    book,
+    slides,
+    initialSlideIndex = 0,
+    timestamp = Date.now(),
+    signal,
+  }: {
+    book: Book
+    slides: Slide[]
+    initialSlideIndex?: number
+    timestamp?: number
+    signal?: AbortSignal
+  }): Promise<void> {
+    const db = await getDB()
+    const tx = db.transaction(['books', 'slides', 'progress'], 'readwrite')
+    const booksStore = tx.objectStore('books')
+    const slidesStore = tx.objectStore('slides')
+    const progressStore = tx.objectStore('progress')
+
+    await booksStore.put(book)
+
+    const CHUNK_SIZE = 100
+    for (let i = 0; i < slides.length; i += CHUNK_SIZE) {
+      const chunk = slides.slice(i, i + CHUNK_SIZE)
+      // Write sequentially to allow cancellation checks between chunks
+      for (const slide of chunk) {
+        if (signal?.aborted) {
+          tx.abort()
+          throw new DOMException('Import cancelled', 'AbortError')
+        }
+        await slidesStore.put(slide)
+      }
+    }
+
+    await progressStore.put({
+      bookId: book.id,
+      slideIndex: initialSlideIndex,
+      updatedAt: timestamp,
+    })
+
+    await tx.done
+  }
+
   async getSlide(bookId: string, slideIndex: number): Promise<Slide | undefined> {
     const db = await getDB()
     return db.get('slides', [bookId, slideIndex])

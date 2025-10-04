@@ -82,7 +82,7 @@ async function handleFile(file: File) {
     const chunkStart = performance.now()
 
     const chapters: ChapterInput[] = result.chapters.map((ch) => ({
-      chapter: ch.chapter,
+      chapter: ch.index,
       text: ch.text,
     }))
 
@@ -98,8 +98,8 @@ async function handleFile(file: File) {
     results.style.display = 'block'
 
     // Display metrics
-    titleEl.textContent = result.metadata.title || 'Unknown'
-    authorEl.textContent = result.metadata.author || 'Unknown'
+    titleEl.textContent = result.meta.title || 'Unknown'
+    authorEl.textContent = result.meta.author || 'Unknown'
     fileSizeEl.textContent = `${fileSizeMB} MB`
     parseTimeEl.textContent = `${result.parseTimeMs.toFixed(0)} ms`
     chapterCountEl.textContent = result.chapters.length.toString()
@@ -113,7 +113,7 @@ async function handleFile(file: File) {
 
     // Log to console for detailed inspection
     console.group('📊 Detailed Results')
-    console.log('Metadata:', result.metadata)
+    console.log('Metadata:', result.meta)
     console.log('Total chapters:', result.chapters.length)
     console.log('Total words:', result.totalWords)
     console.log('Parse time:', result.parseTimeMs, 'ms')
@@ -129,7 +129,7 @@ async function handleFile(file: File) {
     console.group('📄 Sample Slides (first 10)')
     chunkResult.slides.slice(0, 10).forEach((slide, idx) => {
       console.log(`\n${idx + 1}. Slide ${slide.slideIndex} (Chapter ${slide.chapter})`)
-      console.log(`   Words: ${slide.wordCount}`)
+      console.log(`   Words: ${slide.words}`)
       console.log(`   Preview: ${slide.text.slice(0, 100)}...`)
     })
     console.groupEnd()
@@ -180,7 +180,7 @@ function displayChapters(result: ParseResult, slides: any[]) {
       const id = `chapter-${idx}`
 
       // Get slides for this chapter
-      const chapterSlides = slides.filter((s) => s.chapter === chapter.chapter)
+      const chapterSlides = slides.filter((s) => s.chapter === chapter.index)
 
       // Create table with slides
       const slidesTable = `
@@ -198,7 +198,7 @@ function displayChapters(result: ParseResult, slides: any[]) {
                 (slide) => `
               <tr>
                 <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top; font-weight: 600;">${slide.slideIndex}</td>
-                <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top;">${slide.wordCount}</td>
+                <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top;">${slide.words}</td>
                 <td style="padding: 10px; border: 1px solid #dee2e6; white-space: pre-wrap; line-height: 1.5;">${slide.text}</td>
               </tr>
             `
@@ -213,7 +213,7 @@ function displayChapters(result: ParseResult, slides: any[]) {
           <div class="chapter-header">
             <div>
               <div class="chapter-title">${idx + 1}. ${chapter.title}</div>
-              <div class="chapter-meta">${wordCount.toLocaleString()} words · ${chapterSlides.length} slides · Chapter ${chapter.chapter}</div>
+              <div class="chapter-meta">${wordCount.toLocaleString()} words · ${chapterSlides.length} slides · Chapter ${chapter.index}</div>
             </div>
             <button class="toggle-btn" onclick="toggleChapter('${id}')">
               Show Slides
