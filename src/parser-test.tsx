@@ -1,7 +1,10 @@
 import { ParserService } from './parser/ParserService'
+import { ChunkerService } from './chunker/ChunkerService'
 import type { ParseProgress, ParseResult } from './parser/types'
+import type { ChapterInput } from './chunker/types'
 
 const parser = new ParserService()
+const chunker = new ChunkerService()
 
 // Get DOM elements
 const uploadArea = document.getElementById('uploadArea')!
@@ -74,9 +77,24 @@ async function handleFile(file: File) {
     console.log('✅ Parse complete!')
     console.log('Results:', result)
 
+    // Chunk into slides
+    status.textContent = 'Chunking into slides...'
+    const chunkStart = performance.now()
+
+    const chapters: ChapterInput[] = result.chapters.map((ch) => ({
+      chapter: ch.chapter,
+      text: ch.text,
+    }))
+
+    const chunkResult = chunker.split('test-book', chapters)
+    const chunkTime = performance.now() - chunkStart
+
+    console.log('✅ Chunking complete!')
+    console.log('Chunk result:', chunkResult)
+
     // Show results
     status.className = 'status success'
-    status.textContent = '✅ Parse complete!'
+    status.textContent = '✅ Complete!'
     results.style.display = 'block'
 
     // Display metrics
@@ -90,8 +108,8 @@ async function handleFile(file: File) {
     // Performance assessment
     displayPerformance(result, fileSizeMB)
 
-    // Display chapters
-    displayChapters(result)
+    // Display chapters with slides
+    displayChapters(result, chunkResult.slides)
 
     // Log to console for detailed inspection
     console.group('📊 Detailed Results')
@@ -102,16 +120,21 @@ async function handleFile(file: File) {
     console.log('Words/ms:', (result.totalWords / result.parseTimeMs).toFixed(2))
     console.groupEnd()
 
-    console.group('📄 Chapter Details')
-    result.chapters.forEach((chapter, idx) => {
-      const wordCount = chapter.text.split(/\s+/).filter(w => w).length
-      console.log(`\n${idx + 1}. ${chapter.title}`)
-      console.log(`   Words: ${wordCount}`)
-      console.log(`   Preview: ${chapter.text.slice(0, 100)}...`)
+    console.group('📊 Chunking Results')
+    console.log('Total slides:', chunkResult.totalSlides)
+    console.log('Avg words/slide:', chunkResult.averageWordsPerSlide.toFixed(2))
+    console.log('Chunk time:', chunkTime.toFixed(2), 'ms')
+    console.groupEnd()
+
+    console.group('📄 Sample Slides (first 10)')
+    chunkResult.slides.slice(0, 10).forEach((slide, idx) => {
+      console.log(`\n${idx + 1}. Slide ${slide.slideIndex} (Chapter ${slide.chapter})`)
+      console.log(`   Words: ${slide.wordCount}`)
+      console.log(`   Preview: ${slide.text.slice(0, 100)}...`)
     })
     console.groupEnd()
 
-    console.log('\n💡 Full chapter texts available in result.chapters array')
+    console.log('\n💡 Full data available in result.chapters and chunkResult.slides')
   } catch (err) {
     console.error('❌ Parse error:', err)
     status.className = 'status error'
@@ -150,25 +173,54 @@ function displayPerformance(result: ParseResult, fileSizeMB: string) {
   `
 }
 
-function displayChapters(result: ParseResult) {
+function displayChapters(result: ParseResult, slides: any[]) {
   chaptersListEl.innerHTML = result.chapters
     .map((chapter, idx) => {
-      const wordCount = chapter.text.split(/\s+/).filter(w => w).length
+      const wordCount = chapter.text.split(/\s+/).filter((w) => w).length
       const id = `chapter-${idx}`
+
+      // Get slides for this chapter
+      const chapterSlides = slides.filter((s) => s.chapter === chapter.chapter)
+
+      // Create table with slides
+      const slidesTable = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr style="background: #e9ecef;">
+              <th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">Slide #</th>
+              <th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">Words</th>
+              <th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">Text</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${chapterSlides
+              .map(
+                (slide) => `
+              <tr>
+                <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top; font-weight: 600;">${slide.slideIndex}</td>
+                <td style="padding: 10px; border: 1px solid #dee2e6; vertical-align: top;">${slide.wordCount}</td>
+                <td style="padding: 10px; border: 1px solid #dee2e6; white-space: pre-wrap; line-height: 1.5;">${slide.text}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      `
 
       return `
         <div class="chapter">
           <div class="chapter-header">
             <div>
               <div class="chapter-title">${idx + 1}. ${chapter.title}</div>
-              <div class="chapter-meta">${wordCount.toLocaleString()} words · Chapter ${chapter.chapter}</div>
+              <div class="chapter-meta">${wordCount.toLocaleString()} words · ${chapterSlides.length} slides · Chapter ${chapter.chapter}</div>
             </div>
             <button class="toggle-btn" onclick="toggleChapter('${id}')">
-              Show Text
+              Show Slides
             </button>
           </div>
           <div class="chapter-text" id="${id}" style="display: none;">
-${chapter.text}
+${slidesTable}
           </div>
         </div>
       `
@@ -183,9 +235,9 @@ ${chapter.text}
 
   if (el.style.display === 'none') {
     el.style.display = 'block'
-    if (btn) btn.textContent = 'Hide Text'
+    if (btn) btn.textContent = 'Hide Slides'
   } else {
     el.style.display = 'none'
-    if (btn) btn.textContent = 'Show Text'
+    if (btn) btn.textContent = 'Show Slides'
   }
 }

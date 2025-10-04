@@ -109,4 +109,45 @@ bun run preview
 - Upload EPUB → view parsed chapters, metadata, performance
 - Console logging for detailed inspection
 
-### Next: Milestone 3 - Chunking Engine (~50 words/slide)
+### ✅ Milestone 3 - Chunking Engine (~50 words/slide) (COMPLETE)
+
+**ChunkerService** (`src/chunker/ChunkerService.ts`):
+- Deterministic chunking into ~50-word slides
+- Unicode-aware word tokenization (handles hyphens, apostrophes, punctuation)
+- Paragraph-aware splitting (prefers breaks at `\n\n` boundaries)
+- Hard-wrap at 50 words for long paragraphs
+- Chapter metadata preserved in each slide
+- Flexible target word count (50 ±5 words)
+- Short last slide handling
+
+**Algorithm**:
+- Split text into paragraphs by `\n\n`
+- Fill slides to target word count, preferring paragraph boundaries
+- Hard-wrap long paragraphs at exactly 50 words
+- Sequential slide indexing across all chapters
+- No empty or duplicate slides
+
+**Testing**:
+- 34 unit tests, all passing (74 expect() calls)
+- Tests cover: basic chunking, paragraph awareness, long paragraphs, target word count, Unicode/punctuation, edge cases, statistics, deterministic output, real-world scenarios
+- Performance verified: fast chunking (<50ms for typical books)
+
+**ImportService** (`src/importer/ImportService.ts`):
+- Orchestrates full EPUB import pipeline: parse → chunk → store
+- Generates unique book IDs
+- Bulk insert slides via StorageService (100 slides per chunk)
+- Initializes reading progress
+- Progress callbacks throughout import
+
+**Integration**:
+- ChunkerService works with ParserService output
+- Slides stored in IndexedDB via StorageService
+- Test harness shows slides in table format (slide #, word count, text)
+
+**Test Harness**:
+- Enhanced `/parser-test.html` with chunking results
+- Displays total slides, avg words/slide, chunk time
+- Expandable chapters show slides in table format
+- Console logging for detailed inspection
+
+### Next: Milestone 4 - UI Shell (Home + Library)
