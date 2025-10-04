@@ -40,7 +40,7 @@ export class ChunkerService {
               slideIndex: slideIndex++,
               chapter: chapter.chapter,
               text: chunkText,
-              wordCount: chunk.length,
+              words: chunk.length,
             })
           }
         } else {
@@ -51,7 +51,7 @@ export class ChunkerService {
             slideIndex: slideIndex++,
             chapter: chapter.chapter,
             text: slideText,
-            wordCount: currentWordCount,
+            words: currentWordCount,
           })
 
           // Start new slide with current paragraph
@@ -70,7 +70,7 @@ export class ChunkerService {
                 slideIndex: slideIndex++,
                 chapter: chapter.chapter,
                 text: chunkText,
-                wordCount: chunk.length,
+                words: chunk.length,
               })
             }
           }
@@ -85,13 +85,13 @@ export class ChunkerService {
           slideIndex: slideIndex++,
           chapter: chapter.chapter,
           text: slideText,
-          wordCount: currentWordCount,
+          words: currentWordCount,
         })
       }
     }
 
     // Calculate statistics
-    const totalWords = slides.reduce((sum, slide) => sum + slide.wordCount, 0)
+    const totalWords = slides.reduce((sum, slide) => sum + slide.words, 0)
     const averageWordsPerSlide = slides.length > 0 ? totalWords / slides.length : 0
 
     return {

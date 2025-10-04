@@ -22,7 +22,7 @@ describe('ChunkerService', () => {
 
       expect(result.slides).toHaveLength(1)
       expect(result.slides[0]?.chapter).toBe(0)
-      expect(result.slides[0]?.wordCount).toBe(13)
+      expect(result.slides[0]?.words).toBe(13)
       expect(result.totalSlides).toBe(1)
       expect(result.totalWords).toBe(13)
     })
@@ -104,7 +104,7 @@ describe('ChunkerService', () => {
 
       expect(result.slides.length).toBeGreaterThan(1)
       // Each slide should be close to 30 words (paragraph boundary)
-      expect(result.slides[0]?.wordCount).toBeLessThanOrEqual(55)
+      expect(result.slides[0]?.words).toBeLessThanOrEqual(55)
     })
 
     it('should handle multiple paragraphs in one slide', () => {
@@ -136,7 +136,7 @@ describe('ChunkerService', () => {
 
       expect(result.slides.length).toBeGreaterThanOrEqual(3)
       // Most slides should be at or near target
-      const wordsPerSlide = result.slides.map((s) => s.wordCount)
+      const wordsPerSlide = result.slides.map((s) => s.words)
       expect(wordsPerSlide[0]).toBe(50)
       expect(wordsPerSlide[1]).toBe(50)
     })
@@ -152,8 +152,8 @@ describe('ChunkerService', () => {
       const result = chunker.split('book-1', chapters, 50)
 
       expect(result.slides).toHaveLength(2)
-      expect(result.slides[0]?.wordCount).toBe(50)
-      expect(result.slides[1]?.wordCount).toBe(25) // Short last slide
+      expect(result.slides[0]?.words).toBe(50)
+      expect(result.slides[1]?.words).toBe(25) // Short last slide
     })
   })
 
@@ -170,7 +170,7 @@ describe('ChunkerService', () => {
 
       // Should create more slides with smaller target
       expect(result.slides.length).toBeGreaterThanOrEqual(3)
-      expect(result.slides[0]?.wordCount).toBeLessThanOrEqual(35)
+      expect(result.slides[0]?.words).toBeLessThanOrEqual(35)
     })
 
     it('should default to 50 words', () => {
@@ -184,7 +184,7 @@ describe('ChunkerService', () => {
       const result = chunker.split('book-1', chapters)
 
       expect(result.slides.length).toBeGreaterThanOrEqual(2)
-      expect(result.slides[0]?.wordCount).toBeLessThanOrEqual(55)
+      expect(result.slides[0]?.words).toBeLessThanOrEqual(55)
     })
 
     it('should allow ±5 word flexibility', () => {
@@ -199,7 +199,7 @@ describe('ChunkerService', () => {
 
       // Should fit both in one slide (53 + 2 = 55, within range)
       expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.wordCount).toBe(55)
+      expect(result.slides[0]?.words).toBe(55)
     })
   })
 
@@ -334,7 +334,7 @@ describe('ChunkerService', () => {
       const result = chunker.split('book-1', chapters, 50)
 
       expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.wordCount).toBe(1)
+      expect(result.slides[0]?.words).toBe(1)
     })
 
     it('should handle multiple empty paragraphs', () => {
@@ -363,7 +363,7 @@ describe('ChunkerService', () => {
 
       for (const slide of result.slides) {
         expect(slide.text.trim().length).toBeGreaterThan(0)
-        expect(slide.wordCount).toBeGreaterThan(0)
+        expect(slide.words).toBeGreaterThan(0)
       }
     })
 

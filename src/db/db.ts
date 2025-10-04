@@ -1,4 +1,5 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb'
+import { openDB } from 'idb'
+import type { DBSchema, IDBPDatabase } from 'idb'
 
 const DB_NAME = 'skim-db'
 const DB_VERSION = 1

@@ -8,7 +8,7 @@ export interface Slide {
   slideIndex: number
   chapter: number
   text: string
-  wordCount: number
+  words: number
 }
 
 export interface ChunkResult {

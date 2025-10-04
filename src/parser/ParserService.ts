@@ -33,8 +33,8 @@ export class ParserService {
 
       const book = await this.loadEpub(data)
 
-      // Extract metadata
-      const metadata = await this.extractMetadata(book)
+      // Extract metadata (title, author, optional cover)
+      const meta = await this.extractMetadata(book)
 
       // Stage 2: Extract chapters
       onProgress?.({
@@ -91,7 +91,7 @@ export class ParserService {
 
       return {
         chapters: normalizedChapters,
-        metadata,
+        meta,
         parseTimeMs,
         totalWords,
       }
@@ -116,14 +116,22 @@ export class ParserService {
    */
   private async extractMetadata(
     book: Book
-  ): Promise<{ title?: string; author?: string }> {
+  ): Promise<{ title?: string; author?: string; coverBlob?: Blob }> {
     await book.loaded.metadata
 
     const metadata = book.packaging.metadata
 
+    let coverBlob: Blob | undefined
+    try {
+      coverBlob = await this.extractCover(book)
+    } catch (error) {
+      console.warn('Failed to extract cover image', error)
+    }
+
     return {
       title: metadata.title || undefined,
       author: metadata.creator || undefined,
+      coverBlob,
     }
   }
 
@@ -173,7 +181,7 @@ export class ParserService {
         const title = this.extractTitle(doc) || item.idref || `Chapter ${i + 1}`
 
         chapters.push({
-          chapter: i,
+          index: i,
           title,
           text,
           href: item.href,
@@ -188,6 +196,38 @@ export class ParserService {
     }
 
     return chapters
+  }
+
+  /**
+   * Attempt to extract the cover image as a Blob (if available)
+   */
+  private async extractCover(book: Book): Promise<Blob | undefined> {
+    if (typeof fetch !== 'function') {
+      return undefined
+    }
+
+    try {
+      const coverUrl = await book.coverUrl()
+      if (!coverUrl) {
+        return undefined
+      }
+
+      const response = await fetch(coverUrl)
+      if (!response.ok) {
+        return undefined
+      }
+
+      const blob = await response.blob()
+
+      if (coverUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(coverUrl)
+      }
+
+      return blob
+    } catch (error) {
+      console.warn('Error fetching cover image', error)
+      return undefined
+    }
   }
 
   /**

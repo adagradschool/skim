@@ -24,8 +24,8 @@ describe('ParserService', () => {
       expect(result.chapters).toHaveLength(1)
       expect(result.chapters[0]?.title).toBe('Chapter 1')
       expect(result.chapters[0]?.text).toContain('This is a test paragraph')
-      expect(result.metadata.title).toBe('Test Book')
-      expect(result.metadata.author).toBe('Test Author')
+      expect(result.meta.title).toBe('Test Book')
+      expect(result.meta.author).toBe('Test Author')
       expect(result.parseTimeMs).toBeGreaterThan(0)
       expect(result.totalWords).toBeGreaterThan(0)
     })
@@ -65,10 +65,10 @@ describe('ParserService', () => {
       const result = await parser.parse(epub)
 
       expect(result.chapters).toHaveLength(4)
-      expect(result.chapters[0]?.chapter).toBe(0)
-      expect(result.chapters[1]?.chapter).toBe(1)
-      expect(result.chapters[2]?.chapter).toBe(2)
-      expect(result.chapters[3]?.chapter).toBe(3)
+      expect(result.chapters[0]?.index).toBe(0)
+      expect(result.chapters[1]?.index).toBe(1)
+      expect(result.chapters[2]?.index).toBe(2)
+      expect(result.chapters[3]?.index).toBe(3)
     })
   })
 
@@ -260,8 +260,8 @@ describe('ParserService', () => {
 
       const result = await parser.parse(epub)
 
-      expect(result.metadata.title).toBe('Test Book')
-      expect(result.metadata.author).toBe('Test Author')
+      expect(result.meta.title).toBe('Test Book')
+      expect(result.meta.author).toBe('Test Author')
     })
   })
 
@@ -386,7 +386,7 @@ describe('ParserService', () => {
       expect(result.chapters.length).toBeGreaterThan(0)
       expect(result.totalWords).toBeGreaterThan(1000)
       expect(result.parseTimeMs).toBeLessThan(3000) // Should parse in under 3s
-      expect(result.metadata.title).toBeDefined()
+      expect(result.meta.title).toBeDefined()
     }, 10000) // 10 second timeout for real file
 
     it('should parse Cyropaedia fixture', async () => {
@@ -403,7 +403,7 @@ describe('ParserService', () => {
       expect(result.chapters.length).toBeGreaterThan(0)
       expect(result.totalWords).toBeGreaterThan(5000)
       expect(result.parseTimeMs).toBeLessThan(3000) // Should parse in under 3s
-      expect(result.metadata.title).toBeDefined()
+      expect(result.meta.title).toBeDefined()
     }, 10000) // 10 second timeout for real file
   })
 
