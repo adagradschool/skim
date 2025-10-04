@@ -12,7 +12,7 @@ import {
 import { storageService } from '@/db/StorageService'
 import type { Book, Progress } from '@/db/types'
 import { importService, type ImportProgressUpdate } from '@/importer/ImportService'
-import { AlertTriangle, BookOpen, Check, Loader2, Menu, Plus, Settings, Upload, X } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X } from 'lucide-react'
 
 interface LibraryEntry {
   id: string
@@ -44,6 +44,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isUploadOpen, setUploadOpen] = useState(false)
+  const [deleteBookId, setDeleteBookId] = useState<string | null>(null)
 
   const coverUrlsRef = useRef<string[]>([])
 
@@ -105,19 +106,23 @@ export function HomePage() {
 
   const handleCloseUpload = useCallback(() => setUploadOpen(false), [])
 
+  const handleDeleteBook = useCallback(async (bookId: string) => {
+    try {
+      await storageService.deleteBook(bookId)
+      await refreshLibrary()
+      setDeleteBookId(null)
+    } catch (err) {
+      console.error('Failed to delete book', err)
+      setError('Unable to delete book. Try again in a moment.')
+    }
+  }, [refreshLibrary])
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="flex items-center justify-between px-6 pt-6 pb-4">
-        <IconButton label="Open menu">
-          <Menu className="h-5 w-5" />
-        </IconButton>
+      <header className="flex items-center justify-center px-6 pt-6 pb-4">
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Skim</p>
-          <h1 className="mt-2 text-2xl font-semibold">Your Library</h1>
         </div>
-        <IconButton label="Open settings">
-          <Settings className="h-5 w-5" />
-        </IconButton>
       </header>
 
       <main className="flex-1 px-6 pb-24">
@@ -138,7 +143,7 @@ export function HomePage() {
           <ul className="space-y-4">
             {entries.map((entry) => (
               <li key={entry.id}>
-                <LibraryCard entry={entry} />
+                <LibraryCard entry={entry} onDelete={() => setDeleteBookId(entry.id)} />
               </li>
             ))}
           </ul>
@@ -162,6 +167,13 @@ export function HomePage() {
             handleCloseUpload()
             return bookId
           }}
+        />
+      ) : null}
+
+      {deleteBookId ? (
+        <DeleteConfirmationModal
+          onConfirm={() => handleDeleteBook(deleteBookId)}
+          onCancel={() => setDeleteBookId(null)}
         />
       ) : null}
     </div>
@@ -422,14 +434,35 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
           {fileName ? <p className="mt-3 text-sm text-slate-300">Selected: {fileName}</p> : null}
         </div>
 
-        <div className="mt-6 space-y-2">
-          {IMPORT_STAGES.map((stage, index) => (
-            <ProgressStep key={stage} label={STAGE_LABELS[stage]} status={stepStatuses[index]} />
-          ))}
+        <div className="mt-6">
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="text-slate-300">
+              {progressStage !== 'idle' ? STAGE_LABELS[progressStage as ImportStage] : 'Ready'}
+            </span>
+            <span className="text-slate-400">
+              {progressStage !== 'idle' && progressStage !== 'complete'
+                ? `${IMPORT_STAGES.indexOf(progressStage as ImportStage) + 1}/${IMPORT_STAGES.length}`
+                : ''}
+            </span>
+          </div>
+          <div className="relative h-2 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="absolute left-0 top-0 h-full bg-indigo-500 transition-all duration-300"
+              style={{
+                width: `${
+                  progressStage === 'idle'
+                    ? 0
+                    : progressStage === 'complete'
+                      ? 100
+                      : ((IMPORT_STAGES.indexOf(progressStage as ImportStage) + 1) / IMPORT_STAGES.length) * 100
+                }%`,
+              }}
+            />
+          </div>
         </div>
 
         {progressMessage ? (
-          <p className="mt-4 text-sm text-slate-300">{progressMessage}</p>
+          <p className="mt-3 text-sm text-slate-400">{progressMessage}</p>
         ) : null}
 
         {error ? (
@@ -497,31 +530,61 @@ function statusIcon(status: StepStatus) {
 
 interface LibraryCardProps {
   entry: LibraryEntry
+  onDelete: () => void
 }
 
-function LibraryCard({ entry }: LibraryCardProps) {
+function LibraryCard({ entry, onDelete }: LibraryCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
-    <article className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-      <div className="h-20 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-800">
-        {entry.coverUrl ? (
-          <img src={entry.coverUrl} alt="Book cover" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-400">
-            <BookOpen className="h-6 w-6" />
-          </div>
-        )}
+    <article className="relative cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 hover:bg-slate-900">
+      <div className="absolute right-2 top-2 z-10">
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-800 hover:text-slate-100"
+          aria-label="Book options"
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenuOpen(!menuOpen)
+          }}
+        >
+          <MoreVertical className="h-5 w-5" />
+        </button>
+        {menuOpen ? (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="absolute right-0 top-10 z-20 w-40 rounded-lg border border-slate-700 bg-slate-800 py-1 shadow-xl">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-400 transition hover:bg-slate-700"
+                onClick={() => {
+                  setMenuOpen(false)
+                  onDelete()
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          </>
+        ) : null}
       </div>
-      <div className="flex flex-1 flex-col">
-        <h3 className="text-base font-semibold text-white">{entry.title}</h3>
-        {entry.author ? <p className="mt-1 text-sm text-slate-400">{entry.author}</p> : null}
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <ProgressBar percent={entry.progressPercent ?? 0} />
-          <button
-            type="button"
-            className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-900"
-          >
-            {entry.actionLabel}
-          </button>
+      <div className="flex items-center gap-4">
+        <div className="h-20 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-800">
+          {entry.coverUrl ? (
+            <img src={entry.coverUrl} alt="Book cover" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-slate-400">
+              <BookOpen className="h-6 w-6" />
+            </div>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col pr-8">
+          <h3 className="text-base font-semibold text-white">{entry.title}</h3>
+          {entry.author ? <p className="mt-1 text-sm text-slate-400">{entry.author}</p> : null}
+          <div className="mt-3">
+            <ProgressBar percent={entry.progressPercent ?? 0} />
+          </div>
         </div>
       </div>
     </article>
@@ -577,6 +640,54 @@ function deriveProgress(progress: Progress | undefined, totalSlides: number) {
     percent,
     actionLabel: `Resume ${percent}%`,
   }
+}
+
+interface DeleteConfirmationModalProps {
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function DeleteConfirmationModal({ onConfirm, onCancel }: DeleteConfirmationModalProps) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCancel()
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20 text-red-400">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <h2 className="text-lg font-semibold">Delete Book</h2>
+        </div>
+        <p className="mt-4 text-sm text-slate-300">
+          Are you sure you want to delete this book? This will remove all your progress and cannot be undone.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button
+            type="button"
+            className="flex-1 rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-400"
+            onClick={onConfirm}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export { deriveProgress }
