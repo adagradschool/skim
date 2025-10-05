@@ -3,7 +3,7 @@ import { storageService } from '@/db/StorageService'
 import type { Chapter } from '@/db/types'
 import { AlertTriangle, Loader2, Settings, ArrowLeft, List } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
-import { slidingWindowHelper, type SlideWindow } from '@/reader/SlidingWindowHelper'
+import { chunkerService } from '@/chunker/ChunkerService'
 import type { ChunkConfig } from '@/chunker/types'
 import { DEFAULT_CHUNK_CONFIG } from '@/chunker/types'
 
@@ -16,10 +16,9 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   // Core state
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0)
-  const [wordOffset, setWordOffset] = useState<number>(0)
-  const [slideWindow, setSlideWindow] = useState<SlideWindow | null>(null)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0)
+  const [slides, setSlides] = useState<string[]>([])
   const [chunkConfig, setChunkConfig] = useState<ChunkConfig>(DEFAULT_CHUNK_CONFIG)
-  const [lastChunkConfig, setLastChunkConfig] = useState<ChunkConfig>(DEFAULT_CHUNK_CONFIG)
 
   // UI state
   const [loading, setLoading] = useState(true)
@@ -44,6 +43,28 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const progressIntervalRef = useRef<number | null>(null)
   const controlsTimeoutRef = useRef<number | null>(null)
   const isHolding = useRef<boolean>(false)
+
+  // Helper: Convert word offset to slide index
+  const wordOffsetToSlideIndex = useCallback((wordOffset: number, slides: string[]): number => {
+    let currentWordCount = 0
+    for (let i = 0; i < slides.length; i++) {
+      const slideWordCount = slides[i].split(/\s+/).filter(w => w.trim().length > 0).length
+      if (currentWordCount + slideWordCount > wordOffset) {
+        return i
+      }
+      currentWordCount += slideWordCount
+    }
+    return Math.max(0, slides.length - 1)
+  }, [])
+
+  // Helper: Convert slide index to word offset
+  const slideIndexToWordOffset = useCallback((slideIndex: number, slides: string[]): number => {
+    let wordOffset = 0
+    for (let i = 0; i < slideIndex && i < slides.length; i++) {
+      wordOffset += slides[i].split(/\s+/).filter(w => w.trim().length > 0).length
+    }
+    return wordOffset
+  }, [])
 
   // Load initial state
   useEffect(() => {
@@ -75,9 +96,11 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         }
 
         const savedChunkSize = await storageService.getKV('chunkSize')
+        const config = savedChunkSize && typeof savedChunkSize === 'number'
+          ? { maxWords: savedChunkSize }
+          : DEFAULT_CHUNK_CONFIG
         if (savedChunkSize && typeof savedChunkSize === 'number') {
-          setChunkConfig({ maxWords: savedChunkSize })
-          setLastChunkConfig({ maxWords: savedChunkSize })
+          setChunkConfig(config)
         }
 
         // Get progress
@@ -86,15 +109,15 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         const startWordOffset = progress?.wordOffset ?? 0
 
         setCurrentChapterIndex(startChapterIndex)
-        setWordOffset(startWordOffset)
 
-        // Compute initial window
-        const initialWindow = slidingWindowHelper.computeWindow(
-          allChapters[startChapterIndex],
-          startWordOffset,
-          savedChunkSize ? { maxWords: savedChunkSize } : DEFAULT_CHUNK_CONFIG
-        )
-        setSlideWindow(initialWindow)
+        // Chunk the initial chapter
+        const initialChapter = allChapters[startChapterIndex]
+        const initialSlides = chunkerService.chunkText(initialChapter.text, config)
+        setSlides(initialSlides)
+
+        // Find the slide index for the word offset
+        const initialSlideIndex = wordOffsetToSlideIndex(startWordOffset, initialSlides)
+        setCurrentSlideIndex(initialSlideIndex)
 
         slideEntryTime.current = Date.now()
       } catch (err) {
@@ -106,62 +129,42 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
 
     loadReaderState()
-  }, [bookId])
+  }, [bookId, wordOffsetToSlideIndex])
 
-  // Update window when position or config changes
+  // Rechunk entire chapter when chapter or config changes
   useEffect(() => {
     if (chapters.length === 0 || currentChapterIndex >= chapters.length) {
       return
     }
 
     const currentChapter = chapters[currentChapterIndex]
-    const configChanged = chunkConfig.maxWords !== lastChunkConfig.maxWords
+    const newSlides = chunkerService.chunkText(currentChapter.text, chunkConfig)
 
-    if (configChanged) {
-      // Config changed, recompute entire window
-      const newWindow = slidingWindowHelper.computeWindow(
-        currentChapter,
-        wordOffset,
-        chunkConfig
-      )
-      setSlideWindow(newWindow)
-      setLastChunkConfig(chunkConfig)
+    // Only update if slides actually changed
+    const slidesChanged = newSlides.length !== slides.length ||
+      newSlides.some((slide, i) => slide !== slides[i])
+
+    if (!slidesChanged) {
       return
     }
 
-    if (!slideWindow) {
-      // No window yet, compute initial
-      const newWindow = slidingWindowHelper.computeWindow(
-        currentChapter,
-        wordOffset,
-        chunkConfig
-      )
-      setSlideWindow(newWindow)
-      return
-    }
+    setSlides(newSlides)
 
-    // Check if we need to shift window
-    if (slideWindow.chapterIndex !== currentChapterIndex ||
-        !slidingWindowHelper.isWithinWindow(slideWindow, wordOffset)) {
-      // Out of window, recompute
-      const newWindow = slidingWindowHelper.computeWindow(
-        currentChapter,
-        wordOffset,
-        chunkConfig
-      )
-      setSlideWindow(newWindow)
+    // When config changes, try to maintain approximate position
+    // by converting current position to word offset and back
+    if (slides.length > 0 && currentSlideIndex < slides.length) {
+      const wordOffset = slideIndexToWordOffset(currentSlideIndex, slides)
+      const newSlideIndex = wordOffsetToSlideIndex(wordOffset, newSlides)
+      setCurrentSlideIndex(newSlideIndex)
+    } else {
+      // First load or invalid state, start at 0
+      setCurrentSlideIndex(0)
     }
-  }, [chapters, currentChapterIndex, wordOffset, chunkConfig, lastChunkConfig])
+  }, [chapters, currentChapterIndex, chunkConfig, slides, currentSlideIndex, wordOffsetToSlideIndex, slideIndexToWordOffset])
 
   // Navigate to next slide
   const goToNext = useCallback(async () => {
-    if (!slideWindow || chapters.length === 0 || currentChapterIndex >= chapters.length) return
-
-    const currentChapter = chapters[currentChapterIndex]
-    const currentSlideIndex = slidingWindowHelper.findSlideIndexAtOffset(slideWindow, wordOffset)
-
-    // Calculate the offset where the next slide would start
-    const nextSlideOffset = slidingWindowHelper.getOffsetAtSlideIndex(slideWindow, currentSlideIndex + 1)
+    if (slides.length === 0 || chapters.length === 0 || currentChapterIndex >= chapters.length) return
 
     // Record time spent on slide
     if (slideEntryTime.current > 0) {
@@ -170,50 +173,51 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
     slideEntryTime.current = Date.now()
 
-    // Check if next slide would be within the current chapter
-    if (nextSlideOffset < currentChapter.words) {
-      // Stay in current chapter, move to next slide
-      setWordOffset(nextSlideOffset)
-      await storageService.setProgress(bookId, currentChapterIndex, nextSlideOffset)
+    // Check if we can move to next slide in current chapter
+    if (currentSlideIndex < slides.length - 1) {
+      // Move to next slide
+      setCurrentSlideIndex(currentSlideIndex + 1)
+      const wordOffset = slideIndexToWordOffset(currentSlideIndex + 1, slides)
+      await storageService.setProgress(bookId, currentChapterIndex, wordOffset)
     } else {
-      // We've reached the end of this chapter, move to next chapter
+      // At end of chapter, move to next chapter
       if (currentChapterIndex < chapters.length - 1) {
         setCurrentChapterIndex(currentChapterIndex + 1)
-        setWordOffset(0)
+        setCurrentSlideIndex(0)
         await storageService.setProgress(bookId, currentChapterIndex + 1, 0)
       }
     }
-  }, [slideWindow, chapters, wordOffset, currentChapterIndex, bookId])
+  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, slideIndexToWordOffset])
 
   // Navigate to previous slide
   const goToPrevious = useCallback(async () => {
-    if (!slideWindow || chapters.length === 0 || currentChapterIndex >= chapters.length) return
-
-    const currentSlideIndex = slidingWindowHelper.findSlideIndexAtOffset(slideWindow, wordOffset)
+    if (slides.length === 0 || chapters.length === 0 || currentChapterIndex >= chapters.length) return
 
     slideEntryTime.current = Date.now()
 
     // Check if we can move to previous slide in current chapter
     if (currentSlideIndex > 0) {
-      // Move to previous slide in window
-      const prevSlideOffset = slidingWindowHelper.getOffsetAtSlideIndex(slideWindow, currentSlideIndex - 1)
-      setWordOffset(prevSlideOffset)
-      await storageService.setProgress(bookId, currentChapterIndex, prevSlideOffset)
-    } else if (wordOffset > 0) {
-      // We're at the start of the window but not at the start of the chapter
-      // Move back and let the window recompute
-      setWordOffset(Math.max(0, wordOffset - 1))
-      await storageService.setProgress(bookId, currentChapterIndex, Math.max(0, wordOffset - 1))
+      // Move to previous slide
+      setCurrentSlideIndex(currentSlideIndex - 1)
+      const wordOffset = slideIndexToWordOffset(currentSlideIndex - 1, slides)
+      await storageService.setProgress(bookId, currentChapterIndex, wordOffset)
     } else {
       // At start of chapter, move to previous chapter
       if (currentChapterIndex > 0) {
-        const prevChapter = chapters[currentChapterIndex - 1]
-        setCurrentChapterIndex(currentChapterIndex - 1)
-        setWordOffset(prevChapter.words)
-        await storageService.setProgress(bookId, currentChapterIndex - 1, prevChapter.words)
+        const prevChapterIndex = currentChapterIndex - 1
+        setCurrentChapterIndex(prevChapterIndex)
+
+        // Chunk the previous chapter to find its last slide
+        const prevChapter = chapters[prevChapterIndex]
+        const prevSlides = chunkerService.chunkText(prevChapter.text, chunkConfig)
+        const lastSlideIndex = Math.max(0, prevSlides.length - 1)
+        setCurrentSlideIndex(lastSlideIndex)
+
+        const wordOffset = slideIndexToWordOffset(lastSlideIndex, prevSlides)
+        await storageService.setProgress(bookId, prevChapterIndex, wordOffset)
       }
     }
-  }, [slideWindow, chapters, wordOffset, currentChapterIndex, bookId])
+  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, chunkConfig, slideIndexToWordOffset])
 
   // Auto-advance functionality
   const stopAutoAdvance = useCallback(() => {
@@ -333,25 +337,31 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     [goToNext, goToPrevious]
   )
 
-  // Progress slider handler
-  const handleProgressSliderChange = useCallback(async (percentage: number) => {
-    if (chapters.length === 0) return
+  // Helper: Get total words across all chapters
+  const getTotalWords = useCallback((chapters: Chapter[]): number => {
+    return chapters.reduce((sum, ch) => sum + ch.words, 0)
+  }, [])
 
-    const position = slidingWindowHelper.findPositionFromProgress(chapters, percentage)
-    setCurrentChapterIndex(position.chapterIndex)
-    setWordOffset(position.wordOffset)
-    slideEntryTime.current = Date.now()
-    await storageService.setProgress(bookId, position.chapterIndex, position.wordOffset)
-  }, [chapters, bookId])
+  // Helper: Get words before a chapter
+  const getWordsBeforeChapter = useCallback((chapters: Chapter[], chapterIndex: number): number => {
+    return chapters.slice(0, chapterIndex).reduce((sum, ch) => sum + ch.words, 0)
+  }, [])
 
   // Calculate current progress
   const currentProgress = chapters.length > 0
-    ? slidingWindowHelper.calculateProgress(chapters, currentChapterIndex, wordOffset)
+    ? (() => {
+        const totalWords = getTotalWords(chapters)
+        if (totalWords === 0) return 0
+        const wordsBefore = getWordsBeforeChapter(chapters, currentChapterIndex)
+        const currentWordOffset = slideIndexToWordOffset(currentSlideIndex, slides)
+        const currentPosition = wordsBefore + currentWordOffset
+        return (currentPosition / totalWords) * 100
+      })()
     : 0
 
   // Get current slide text
-  const currentSlideText = slideWindow
-    ? slideWindow.slides[slidingWindowHelper.findSlideIndexAtOffset(slideWindow, wordOffset)] || ''
+  const currentSlideText = slides.length > 0 && currentSlideIndex < slides.length
+    ? slides[currentSlideIndex]
     : ''
 
   if (loading) {
@@ -497,7 +507,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                     type="button"
                     onClick={async () => {
                       setCurrentChapterIndex(index)
-                      setWordOffset(0)
+                      setCurrentSlideIndex(0)
                       await storageService.setProgress(bookId, index, 0)
                       setShowIndex(false)
                       slideEntryTime.current = Date.now()
