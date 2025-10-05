@@ -36,7 +36,7 @@ export interface Slide {
 export interface Progress {
   bookId: string
   chapterIndex: number      // Which chapter
-  characterOffset: number   // Character position within chapter
+  wordOffset: number        // Word position within chapter (0-indexed)
   updatedAt: number
 }
 

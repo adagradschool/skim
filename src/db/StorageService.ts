@@ -210,12 +210,12 @@ export class StorageService {
     return db.get('progress', bookId)
   }
 
-  async setProgress(bookId: string, chapterIndex: number, characterOffset: number): Promise<void> {
+  async setProgress(bookId: string, chapterIndex: number, wordOffset: number): Promise<void> {
     const db = await getDB()
     await db.put('progress', {
       bookId,
       chapterIndex,
-      characterOffset,
+      wordOffset,
       updatedAt: Date.now(),
     })
   }
