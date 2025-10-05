@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
 import type { Chapter } from '@/db/types'
-import { AlertTriangle, Loader2, Settings, ArrowLeft } from 'lucide-react'
+import { AlertTriangle, Loader2, Settings, ArrowLeft, List } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 import { slidingWindowHelper, type SlideWindow } from '@/reader/SlidingWindowHelper'
 import type { ChunkConfig } from '@/chunker/types'
@@ -27,6 +27,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const [bookTitle, setBookTitle] = useState<string>('')
   const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showIndex, setShowIndex] = useState(false)
   const [showControls, setShowControls] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
@@ -250,6 +251,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       isAutoSwipeEnabled &&
       !isPaused &&
       !showSettings &&
+      !showIndex &&
       currentChapterIndex < chapters.length &&
       !loading &&
       readingEstimator.current.shouldEnableAutoplay()
@@ -260,7 +262,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       stopAutoAdvance()
     }
     return () => stopAutoAdvance()
-  }, [isAutoSwipeEnabled, isPaused, showSettings, currentChapterIndex, chapters.length, loading, startAutoAdvance, stopAutoAdvance])
+  }, [isAutoSwipeEnabled, isPaused, showSettings, showIndex, currentChapterIndex, chapters.length, loading, startAutoAdvance, stopAutoAdvance])
 
   // Hide controls after 3 seconds
   useEffect(() => {
@@ -418,7 +420,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         )}
       </main>
 
-      {/* Top bar with back button and settings */}
+      {/* Top bar with back button, index, and settings */}
       {showControls && (
         <>
           <div className="absolute left-4 top-4 z-10">
@@ -434,7 +436,18 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
               <ArrowLeft className="h-5 w-5" />
             </button>
           </div>
-          <div className="absolute right-4 top-4 z-10">
+          <div className="absolute right-4 top-4 z-10 flex gap-2">
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
+              aria-label="Chapter Index"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowIndex(!showIndex)
+              }}
+            >
+              <List className="h-5 w-5" />
+            </button>
             <button
               type="button"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
@@ -450,47 +463,82 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         </>
       )}
 
-      {/* Footer with progress slider */}
+      {/* Footer with progress percentage */}
       {showControls && (
         <footer className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-6">
           <div className="mx-auto max-w-2xl">
-            <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-              <span>Chapter {currentChapterIndex + 1} of {chapters.length}</span>
-              <span>{Math.round(currentProgress)}%</span>
-            </div>
-            <div className="relative h-8 touch-none">
-              <div
-                className="absolute left-0 right-0 top-3 h-2 cursor-pointer rounded-full bg-slate-800"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const clickX = e.clientX - rect.left
-                  const percent = (clickX / rect.width) * 100
-                  handleProgressSliderChange(percent)
-                }}
-              >
-                {/* Progress fill */}
-                <div
-                  className="absolute left-0 top-0 h-full rounded-full bg-indigo-500 transition-all duration-300"
-                  style={{ width: `${currentProgress}%` }}
-                />
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="0.1"
-                value={currentProgress}
-                onChange={(e) => {
-                  const percent = Number(e.target.value)
-                  handleProgressSliderChange(percent)
-                }}
-                className="absolute left-0 top-0 h-8 w-full cursor-pointer appearance-none bg-transparent"
-                style={{ WebkitAppearance: 'none' }}
-              />
+            <div className="flex items-center justify-center text-xs text-slate-400">
+              <span>{Math.round(currentProgress)}% complete</span>
             </div>
           </div>
         </footer>
       )}
+
+      {/* Chapter Index panel */}
+      {showIndex ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowIndex(false)
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
+            <div className="p-6 pb-4 border-b border-slate-700">
+              <h2 className="text-lg font-semibold">Chapters</h2>
+            </div>
+            <div className="overflow-y-auto flex-1 px-4 py-2">
+              {chapters.map((chapter, index) => {
+                const isActive = index === currentChapterIndex
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={async () => {
+                      setCurrentChapterIndex(index)
+                      setWordOffset(0)
+                      await storageService.setProgress(bookId, index, 0)
+                      setShowIndex(false)
+                      slideEntryTime.current = Date.now()
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition mb-2 ${
+                      isActive
+                        ? 'bg-indigo-500/20 border border-indigo-500'
+                        : 'bg-slate-800 hover:bg-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-slate-100">
+                          {chapter.title || `Chapter ${index + 1}`}
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1">
+                          {chapter.words.toLocaleString()} words
+                        </div>
+                      </div>
+                      {isActive && (
+                        <div className="ml-3 text-xs font-semibold text-indigo-400">
+                          Current
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="p-4 border-t border-slate-700">
+              <button
+                type="button"
+                className="w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+                onClick={() => setShowIndex(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Settings panel */}
       {showSettings ? (
