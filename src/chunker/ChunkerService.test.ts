@@ -1,498 +1,213 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, expect, test } from 'bun:test'
 import { ChunkerService } from './ChunkerService'
-import type { ChapterInput } from './types'
+import type { ChunkConfig } from './types'
 
 describe('ChunkerService', () => {
-  let chunker: ChunkerService
+  const chunker = new ChunkerService()
 
-  beforeEach(() => {
-    chunker = new ChunkerService()
-  })
+  describe('chunkText', () => {
+    test('chunks text at sentence boundaries', () => {
+      const text = 'First sentence. Second sentence. Third sentence.'
+      const config: ChunkConfig = { maxWords: 4 }
 
-  describe('Basic chunking', () => {
-    it('should chunk a simple chapter into slides', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'This is a test paragraph with exactly ten words here now and more.',
-        },
-      ]
+      const result = chunker.chunkText(text, config)
 
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.chapter).toBe(0)
-      expect(result.slides[0]?.words).toBe(13)
-      expect(result.totalSlides).toBe(1)
-      expect(result.totalWords).toBe(13)
+      expect(result).toEqual([
+        'First sentence. Second sentence.',
+        'Third sentence.',
+      ])
     })
 
-    it('should create multiple slides for long text', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(100).fill('word').join(' '),
-        },
-      ]
+    test('respects maxWords limit', () => {
+      const text = 'One two three four five six seven eight nine ten.'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides.length).toBeGreaterThan(1)
-      expect(result.totalWords).toBe(100)
+      // Should split into 2 slides: [One two three four five] [six seven eight nine ten.]
+      expect(result).toHaveLength(2)
+      expect(result[0].split(/\s+/).length).toBeLessThanOrEqual(5)
     })
 
-    it('should preserve chapter numbers', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: 'Chapter zero content here.' },
-        { chapter: 1, text: 'Chapter one content here.' },
-        { chapter: 2, text: 'Chapter two content here.' },
-      ]
+    test('handles multiple sentences in one slide', () => {
+      const text = 'Short. Also short. Still short.'
+      const config: ChunkConfig = { maxWords: 10 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides[0]?.chapter).toBe(0)
-      expect(result.slides[1]?.chapter).toBe(1)
-      expect(result.slides[2]?.chapter).toBe(2)
+      expect(result).toEqual(['Short. Also short. Still short.'])
     })
 
-    it('should assign sequential slide indices', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: 'First chapter.' },
-        { chapter: 1, text: 'Second chapter.' },
-      ]
+    test('splits long sentences across slides', () => {
+      const text = 'This is a very long sentence with many many words that exceeds the maximum word limit.'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides[0]?.slideIndex).toBe(0)
-      expect(result.slides[1]?.slideIndex).toBe(1)
+      expect(result.length).toBeGreaterThan(1)
+      // Each slide should have roughly maxWords
+      result.forEach((slide) => {
+        const wordCount = slide.split(/\s+/).length
+        expect(wordCount).toBeLessThanOrEqual(6) // Allow small overflow for splitting
+      })
     })
 
-    it('should include bookId in all slides', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: 'Test content.' },
-      ]
+    test('handles text with no sentence boundaries', () => {
+      const text = 'This is text without any punctuation at all'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-123', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides[0]?.bookId).toBe('book-123')
-    })
-  })
-
-  describe('Paragraph awareness', () => {
-    it('should preserve paragraph breaks', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'First paragraph with some words.\n\nSecond paragraph with more words.',
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides[0]?.text).toContain('\n\n')
+      expect(result.length).toBeGreaterThan(0)
     })
 
-    it('should prefer breaking at paragraph boundaries', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(30).fill('word').join(' ') + '\n\n' + Array(30).fill('word').join(' '),
-        },
-      ]
+    test('handles empty text', () => {
+      const text = ''
+      const config: ChunkConfig = { maxWords: 50 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides.length).toBeGreaterThan(1)
-      // Each slide should be close to 30 words (paragraph boundary)
-      expect(result.slides[0]?.words).toBeLessThanOrEqual(55)
+      expect(result).toEqual([])
     })
 
-    it('should handle multiple paragraphs in one slide', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'Short para one.\n\nShort para two.\n\nShort para three.',
-        },
-      ]
+    test('handles text with only whitespace', () => {
+      const text = '   \n\n  \t  '
+      const config: ChunkConfig = { maxWords: 50 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.text).toContain('\n\n')
-    })
-  })
-
-  describe('Long paragraph handling', () => {
-    it('should hard-wrap long paragraphs at target word count', () => {
-      const longParagraph = Array(150).fill('word').join(' ')
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: longParagraph,
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides.length).toBeGreaterThanOrEqual(3)
-      // Most slides should be at or near target
-      const wordsPerSlide = result.slides.map((s) => s.words)
-      expect(wordsPerSlide[0]).toBe(50)
-      expect(wordsPerSlide[1]).toBe(50)
+      expect(result).toEqual([])
     })
 
-    it('should handle last slide being short', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(75).fill('word').join(' '),
-        },
-      ]
+    test('handles different punctuation marks', () => {
+      const text = 'Question? Exclamation! Statement.'
+      const config: ChunkConfig = { maxWords: 2 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(2)
-      expect(result.slides[0]?.words).toBe(50)
-      expect(result.slides[1]?.words).toBe(25) // Short last slide
-    })
-  })
-
-  describe('Target word count', () => {
-    it('should respect custom target word count', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(100).fill('word').join(' '),
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 30)
-
-      // Should create more slides with smaller target
-      expect(result.slides.length).toBeGreaterThanOrEqual(3)
-      expect(result.slides[0]?.words).toBeLessThanOrEqual(35)
+      expect(result).toEqual([
+        'Question? Exclamation!',
+        'Statement.',
+      ])
     })
 
-    it('should default to 50 words', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(100).fill('word').join(' '),
-        },
-      ]
+    test('handles paragraphs with multiple sentences', () => {
+      const text = `First paragraph sentence one. First paragraph sentence two.
 
-      const result = chunker.split('book-1', chapters)
+Second paragraph sentence one. Second paragraph sentence two.`
+      const config: ChunkConfig = { maxWords: 10 }
 
-      expect(result.slides.length).toBeGreaterThanOrEqual(2)
-      expect(result.slides[0]?.words).toBeLessThanOrEqual(55)
+      const result = chunker.chunkText(text, config)
+
+      expect(result.length).toBeGreaterThan(0)
+      // Should preserve sentence boundaries
+      result.forEach((slide) => {
+        expect(slide.trim().length).toBeGreaterThan(0)
+      })
     })
 
-    it('should allow ±5 word flexibility', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(53).fill('word').join(' ') + '\n\n' + 'Extra paragraph.',
-        },
-      ]
+    test('uses DEFAULT_CHUNK_CONFIG when no config provided', () => {
+      const text = 'This is a test sentence with some words.'
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text)
 
-      // Should fit both in one slide (53 + 2 = 55, within range)
-      expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.words).toBe(55)
-    })
-  })
-
-  describe('Word tokenization', () => {
-    it('should handle Unicode text', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'Hello 世界 test 文字 here and more words.',
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBeGreaterThan(0)
+      expect(result).toHaveLength(1) // Should fit in default 50 words
     })
 
-    it('should handle hyphens', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'This is a well-known fact about twenty-first century technology.',
-        },
-      ]
+    test('handles very small maxWords', () => {
+      const text = 'One. Two. Three.'
+      const config: ChunkConfig = { maxWords: 1 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBe(9) // Hyphens count as single words
+      expect(result).toEqual(['One.', 'Two.', 'Three.'])
     })
 
-    it('should handle punctuation', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'Hello, world! How are you? I am fine, thanks.',
-        },
-      ]
+    test('handles very large maxWords', () => {
+      const text = 'Short text.'
+      const config: ChunkConfig = { maxWords: 1000 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBe(9)
+      expect(result).toEqual(['Short text.'])
     })
 
-    it('should handle apostrophes', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: "It's a beautiful day. We're going to the park.",
-        },
-      ]
+    test('preserves sentence punctuation', () => {
+      const text = 'Hello! How are you? I am fine.'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBe(9)
+      result.forEach((slide) => {
+        // Each slide should contain proper punctuation
+        expect(slide).toMatch(/[.!?]/)
+      })
     })
 
-    it('should handle quotes', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: '"Hello," she said. "How are you today?" he replied.',
-        },
-      ]
+    test('handles consecutive punctuation', () => {
+      const text = 'What?! Really?! No way!'
+      const config: ChunkConfig = { maxWords: 3 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBe(9)
+      expect(result.length).toBeGreaterThan(0)
     })
 
-    it('should handle ellipsis', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'Well... I think... maybe we should go.',
-        },
-      ]
+    test('handles real-world book text', () => {
+      const text = `It was the best of times, it was the worst of times. It was the age of wisdom, it was the age of foolishness. It was the epoch of belief, it was the epoch of incredulity.`
+      const config: ChunkConfig = { maxWords: 20 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBe(7)
+      expect(result.length).toBeGreaterThan(1)
+      result.forEach((slide) => {
+        const wordCount = slide.split(/\s+/).length
+        // Should be close to maxWords
+        expect(wordCount).toBeLessThanOrEqual(25)
+      })
     })
 
-    it('should collapse multiple spaces', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'This  has    multiple     spaces between words.',
-        },
-      ]
+    test('handles ellipsis in text', () => {
+      const text = 'Well... maybe. Not sure... really.'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBe(6)
-    })
-  })
-
-  describe('Edge cases', () => {
-    it('should handle empty chapters', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: '' },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides).toHaveLength(0)
-      expect(result.totalWords).toBe(0)
+      expect(result.length).toBeGreaterThan(0)
     })
 
-    it('should handle chapters with only whitespace', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: '   \n\n   ' },
-      ]
+    test('handles quoted text', () => {
+      const text = '"Hello," she said. "How are you?"'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(0)
-      expect(result.totalWords).toBe(0)
+      expect(result.length).toBeGreaterThan(0)
     })
 
-    it('should handle very short chapters', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: 'One.' },
-      ]
+    test('sentence-aware: prefers sentence boundary over word count', () => {
+      // Three short sentences that together exceed maxWords
+      const text = 'One two three four five. Six seven eight. Nine ten.'
+      const config: ChunkConfig = { maxWords: 6 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.words).toBe(1)
+      // First sentence (5 words) < 6, so it's added
+      // Second sentence (3 words): 5+3=8 > 6, so start new slide
+      // Third sentence (2 words): 3+2=5 < 6, so add to current slide
+      expect(result).toHaveLength(2)
+      expect(result[0]).toBe('One two three four five.')
+      expect(result[1]).toBe('Six seven eight. Nine ten.')
     })
 
-    it('should handle multiple empty paragraphs', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'First.\n\n\n\n\n\nSecond.',
-        },
-      ]
+    test('deterministic output for same input', () => {
+      const text = 'Deterministic sentence. Another sentence. Final one.'
+      const config: ChunkConfig = { maxWords: 5 }
 
-      const result = chunker.split('book-1', chapters, 50)
+      const result1 = chunker.chunkText(text, config)
+      const result2 = chunker.chunkText(text, config)
 
-      expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.text).toContain('\n\n')
-    })
-
-    it('should not create empty slides', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(100).fill('word').join(' '),
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      for (const slide of result.slides) {
-        expect(slide.text.trim().length).toBeGreaterThan(0)
-        expect(slide.words).toBeGreaterThan(0)
-      }
-    })
-
-    it('should not create duplicate slides', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: Array(100)
-            .fill(0)
-            .map((_, i) => `word${i}`)
-            .join(' '),
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      const texts = result.slides.map((s) => s.text)
-      const uniqueTexts = new Set(texts)
-      expect(uniqueTexts.size).toBe(texts.length)
-    })
-  })
-
-  describe('Statistics', () => {
-    it('should calculate correct total words', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: Array(50).fill('word').join(' ') },
-        { chapter: 1, text: Array(30).fill('word').join(' ') },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.totalWords).toBe(80)
-    })
-
-    it('should calculate average words per slide', () => {
-      const chapters: ChapterInput[] = [
-        { chapter: 0, text: Array(100).fill('word').join(' ') },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.averageWordsPerSlide).toBeGreaterThan(0)
-      expect(result.averageWordsPerSlide).toBeLessThanOrEqual(50)
-    })
-
-    it('should handle zero slides gracefully', () => {
-      const chapters: ChapterInput[] = []
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.totalSlides).toBe(0)
-      expect(result.totalWords).toBe(0)
-      expect(result.averageWordsPerSlide).toBe(0)
-    })
-  })
-
-  describe('Deterministic output', () => {
-    it('should produce consistent output for same input', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'Deterministic content with multiple words here.',
-        },
-      ]
-
-      const result1 = chunker.split('book-1', chapters, 50)
-      const result2 = chunker.split('book-1', chapters, 50)
-
-      expect(result1.slides.length).toBe(result2.slides.length)
-      expect(result1.slides[0]?.text).toBe(result2.slides[0]?.text)
-      expect(result1.totalWords).toBe(result2.totalWords)
-    })
-  })
-
-  describe('Real-world scenarios', () => {
-    it('should handle footnotes and brackets', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'This is a sentence[1] with a footnote. See reference[2] here.',
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBeGreaterThan(0)
-    })
-
-    it('should handle long quotes', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: '"This is a very long quote that goes on and on and on and on and has many words in it," said the author.',
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides).toHaveLength(1)
-      expect(result.slides[0]?.text).toContain('"')
-    })
-
-    it('should handle numbers and dates', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'On January 1, 2024, at 3:00 PM, there were 1,234 people present.',
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides).toHaveLength(1)
-      expect(result.totalWords).toBeGreaterThan(0)
-    })
-
-    it('should handle mixed content types', () => {
-      const chapters: ChapterInput[] = [
-        {
-          chapter: 0,
-          text: 'Paragraph one.\n\nParagraph two.\n\n' + Array(60).fill('word').join(' '),
-        },
-      ]
-
-      const result = chunker.split('book-1', chapters, 50)
-
-      expect(result.slides.length).toBeGreaterThan(1)
-      expect(result.totalWords).toBeGreaterThan(60)
+      expect(result1).toEqual(result2)
     })
   })
 })

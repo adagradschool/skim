@@ -1,132 +1,126 @@
-import type { ChapterInput, Slide, ChunkResult } from './types'
+import type { ChunkConfig } from './types'
+import { DEFAULT_CHUNK_CONFIG } from './types'
 
 export class ChunkerService {
   /**
-   * Split chapters into ~50-word slides with paragraph awareness
-   * @param bookId - ID of the book being chunked
-   * @param chapters - Array of chapter texts
-   * @param targetWords - Target words per slide (default 50)
-   * @returns ChunkResult with slides and metadata
+   * Chunk text into slides on-the-fly with sentence-aware boundaries
+   * @param text - Full chapter text
+   * @param config - Chunking configuration
+   * @returns Array of slide texts
    */
-  split(bookId: string, chapters: ChapterInput[], targetWords = 50): ChunkResult {
-    const slides: Slide[] = []
-    let slideIndex = 0
-
-    for (const chapter of chapters) {
-      // Split chapter into paragraphs (separated by \n\n)
-      const paragraphs = chapter.text
-        .split(/\n\n+/)
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0)
-
-      let currentSlide: string[] = []
-      let currentWordCount = 0
-
-      for (const paragraph of paragraphs) {
-        const words = this.tokenizeWords(paragraph)
-        const paragraphWordCount = words.length
-
-        // If current slide + paragraph fits in target range (45-55 words)
-        if (currentWordCount + paragraphWordCount <= targetWords + 5) {
-          currentSlide.push(paragraph)
-          currentWordCount += paragraphWordCount
-        } else if (currentWordCount === 0) {
-          // Long paragraph that needs to be split
-          const chunks = this.splitLongParagraph(words, targetWords)
-          for (const chunk of chunks) {
-            const chunkText = chunk.join(' ')
-            slides.push({
-              bookId,
-              slideIndex: slideIndex++,
-              chapter: chapter.chapter,
-              text: chunkText,
-              words: chunk.length,
-            })
-          }
-        } else {
-          // Save current slide and start new one with this paragraph
-          const slideText = currentSlide.join('\n\n')
-          slides.push({
-            bookId,
-            slideIndex: slideIndex++,
-            chapter: chapter.chapter,
-            text: slideText,
-            words: currentWordCount,
-          })
-
-          // Start new slide with current paragraph
-          if (paragraphWordCount <= targetWords + 5) {
-            currentSlide = [paragraph]
-            currentWordCount = paragraphWordCount
-          } else {
-            // Long paragraph needs splitting
-            currentSlide = []
-            currentWordCount = 0
-            const chunks = this.splitLongParagraph(words, targetWords)
-            for (const chunk of chunks) {
-              const chunkText = chunk.join(' ')
-              slides.push({
-                bookId,
-                slideIndex: slideIndex++,
-                chapter: chapter.chapter,
-                text: chunkText,
-                words: chunk.length,
-              })
-            }
-          }
-        }
-      }
-
-      // Save any remaining content as final slide for this chapter
-      if (currentSlide.length > 0) {
-        const slideText = currentSlide.join('\n\n')
-        slides.push({
-          bookId,
-          slideIndex: slideIndex++,
-          chapter: chapter.chapter,
-          text: slideText,
-          words: currentWordCount,
-        })
-      }
+  chunkText(text: string, config: ChunkConfig = DEFAULT_CHUNK_CONFIG): string[] {
+    // Handle empty or whitespace-only text
+    if (!text || text.trim().length === 0) {
+      return []
     }
 
-    // Calculate statistics
-    const totalWords = slides.reduce((sum, slide) => sum + slide.words, 0)
-    const averageWordsPerSlide = slides.length > 0 ? totalWords / slides.length : 0
-
-    return {
-      slides,
-      totalSlides: slides.length,
-      totalWords,
-      averageWordsPerSlide,
-    }
+    const sentences = this.splitIntoSentences(text)
+    return this.groupSentencesIntoSlides(sentences, config)
   }
 
   /**
-   * Split a long paragraph into chunks at target word count
-   * @param words - Array of words from paragraph
-   * @param targetWords - Target words per chunk
-   * @returns Array of word arrays (chunks)
+   * Split text into sentences using simple regex
+   * Handles: . ! ? with proper spacing
+   * Can be swapped for more sophisticated NLP later
+   * @param text - Text to split
+   * @returns Array of sentences
    */
-  private splitLongParagraph(words: string[], targetWords: number): string[][] {
-    const chunks: string[][] = []
-    let currentChunk: string[] = []
+  private splitIntoSentences(text: string): string[] {
+    // Split on sentence boundaries: . ! ? followed by space or end
+    // Keep the punctuation with the sentence
+    const sentenceRegex = /[^.!?]+[.!?]+(?:\s+|$)/g
+    const matches = text.match(sentenceRegex)
 
-    for (const word of words) {
-      currentChunk.push(word)
+    if (!matches) {
+      // No sentence boundaries found, return whole text as one sentence
+      return [text.trim()]
+    }
 
-      if (currentChunk.length >= targetWords) {
-        chunks.push(currentChunk)
-        currentChunk = []
+    return matches
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+  }
+
+  /**
+   * Group sentences into slides based on word count
+   * Priority: Sentence boundaries > Word count target
+   * @param sentences - Array of sentences
+   * @param config - Chunking configuration
+   * @returns Array of slide texts
+   */
+  private groupSentencesIntoSlides(sentences: string[], config: ChunkConfig): string[] {
+    const slides: string[] = []
+    let currentSlide: string[] = []
+    let currentWordCount = 0
+
+    for (const sentence of sentences) {
+      const sentenceWords = this.countWords(sentence)
+
+      // If adding this sentence exceeds limit
+      if (currentWordCount + sentenceWords > config.maxWords) {
+        // If we have content, save current slide
+        if (currentSlide.length > 0) {
+          slides.push(currentSlide.join(' '))
+          currentSlide = []
+          currentWordCount = 0
+        }
+
+        // If single sentence is too long, split it at word boundaries
+        if (sentenceWords > config.maxWords) {
+          const chunks = this.splitLongSentence(sentence, config.maxWords)
+          // Add all chunks except the last one as complete slides
+          for (let i = 0; i < chunks.length - 1; i++) {
+            slides.push(chunks[i])
+          }
+          // Start new slide with the last chunk
+          const lastChunk = chunks[chunks.length - 1]
+          currentSlide = [lastChunk]
+          currentWordCount = this.countWords(lastChunk)
+        } else {
+          // Add full sentence to new slide
+          currentSlide.push(sentence)
+          currentWordCount = sentenceWords
+        }
+      } else {
+        // Sentence fits, add it
+        currentSlide.push(sentence)
+        currentWordCount += sentenceWords
       }
     }
 
-    // Add remaining words as final chunk (may be short)
-    if (currentChunk.length > 0) {
-      chunks.push(currentChunk)
+    // Flush remaining content
+    if (currentSlide.length > 0) {
+      slides.push(currentSlide.join(' '))
+    }
+
+    return slides
+  }
+
+  /**
+   * Split a long sentence into chunks at word boundaries
+   * @param sentence - Sentence to split
+   * @param maxWords - Maximum words per chunk
+   * @returns Array of text chunks
+   */
+  private splitLongSentence(sentence: string, maxWords: number): string[] {
+    const words = this.tokenizeWords(sentence)
+    const chunks: string[] = []
+
+    for (let i = 0; i < words.length; i += maxWords) {
+      const chunk = words.slice(i, i + maxWords)
+      chunks.push(chunk.join(' '))
     }
 
     return chunks
+  }
+
+  /**
+   * Count words in text
+   * @param text - Text to count
+   * @returns Number of words
+   */
+  private countWords(text: string): number {
+    return this.tokenizeWords(text).length
   }
 
   /**
@@ -136,7 +130,6 @@ export class ChunkerService {
    * @returns Array of words
    */
   private tokenizeWords(text: string): string[] {
-    // Split on whitespace, filter empty strings
     return text
       .split(/\s+/)
       .map((w) => w.trim())
