@@ -1,11 +1,9 @@
 import { parserService } from '@/parser/ParserService'
-import { chunkerService } from '@/chunker/ChunkerService'
 import { storageService } from '@/db/StorageService'
-import type { Book, Slide } from '@/db/types'
-import type { ChapterInput } from '@/chunker/types'
+import type { Book, Chapter } from '@/db/types'
 import type { ParseProgress } from '@/parser/types'
 
-export type ImportProgressStage = 'reading' | 'parsing' | 'chunking' | 'storing' | 'complete'
+export type ImportProgressStage = 'reading' | 'parsing' | 'storing' | 'complete'
 
 export interface ImportProgressUpdate {
   stage: ImportProgressStage
@@ -51,22 +49,15 @@ export class ImportService {
       const bookId = this.generateBookId()
       const timestamp = Date.now()
 
-      onProgress?.({ stage: 'chunking', message: 'Chunking into slides...' })
-      const chapters: ChapterInput[] = parseResult.chapters.map((chapter) => ({
-        chapter: chapter.index,
-        text: chapter.text,
-      }))
-
-      const chunkResult = chunkerService.split(bookId, chapters)
-
       this.ensureNotAborted(signal)
 
-      const slides: Slide[] = chunkResult.slides.map((slide) => ({
-        bookId: slide.bookId,
-        slideIndex: slide.slideIndex,
-        chapter: slide.chapter,
-        text: slide.text,
-        words: slide.words,
+      // Convert parsed chapters to storage format
+      const chapters: Chapter[] = parseResult.chapters.map((parsedChapter) => ({
+        bookId,
+        chapterIndex: parsedChapter.index,
+        title: parsedChapter.title,
+        text: parsedChapter.text,
+        words: this.countWords(parsedChapter.text),
       }))
 
       const book: Book = {
@@ -80,18 +71,16 @@ export class ImportService {
 
       onProgress?.({
         stage: 'storing',
-        message: `Saving ${slides.length} slides...`,
-        current: slides.length,
-        total: slides.length,
+        message: `Saving ${chapters.length} chapters...`,
+        current: chapters.length,
+        total: chapters.length,
       })
 
-      await storageService.saveImportedBundle({
-        book,
-        slides,
-        initialSlideIndex: 0,
-        timestamp,
-        signal,
-      })
+      await storageService.saveBook(book)
+      await storageService.saveChapters(chapters)
+
+      // Initialize progress at start of first chapter
+      await storageService.setProgress(bookId, 0, 0)
 
       onProgress?.({ stage: 'complete', message: 'Import complete' })
 
@@ -138,6 +127,16 @@ export class ImportService {
    */
   private generateBookId(): string {
     return `book-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+  }
+
+  /**
+   * Count words in text
+   */
+  private countWords(text: string): number {
+    return text
+      .split(/\s+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 0).length
   }
 }
 

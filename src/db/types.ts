@@ -16,6 +16,15 @@ export interface BookAsset {
   text: string
 }
 
+export interface Chapter {
+  bookId: string
+  chapterIndex: number
+  title: string
+  text: string      // Full chapter text (NOT pre-chunked)
+  words: number     // Total word count for this chapter
+}
+
+// Deprecated: Kept for reference, will be removed after migration
 export interface Slide {
   bookId: string
   slideIndex: number
@@ -26,7 +35,8 @@ export interface Slide {
 
 export interface Progress {
   bookId: string
-  slideIndex: number
+  chapterIndex: number      // Which chapter
+  wordOffset: number        // Word position within chapter (0-indexed)
   updatedAt: number
 }
 

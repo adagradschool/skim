@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
-import type { Slide } from '@/db/types'
+import type { Chapter } from '@/db/types'
 import { AlertTriangle, Loader2, Settings, ArrowLeft } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
+import { slidingWindowHelper, type SlideWindow } from '@/reader/SlidingWindowHelper'
+import type { ChunkConfig } from '@/chunker/types'
+import { DEFAULT_CHUNK_CONFIG } from '@/chunker/types'
 
 interface ReaderPageProps {
   bookId: string
@@ -10,17 +13,21 @@ interface ReaderPageProps {
 }
 
 export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
-  const [currentSlide, setCurrentSlide] = useState<Slide | null>(null)
-  const [currentIndex, setCurrentIndex] = useState<number>(0)
-  const [totalSlides, setTotalSlides] = useState<number>(0)
+  // Core state
+  const [chapters, setChapters] = useState<Chapter[]>([])
+  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0)
+  const [wordOffset, setWordOffset] = useState<number>(0)
+  const [slideWindow, setSlideWindow] = useState<SlideWindow | null>(null)
+  const [chunkConfig, setChunkConfig] = useState<ChunkConfig>(DEFAULT_CHUNK_CONFIG)
+  const [lastChunkConfig, setLastChunkConfig] = useState<ChunkConfig>(DEFAULT_CHUNK_CONFIG)
+
+  // UI state
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [bookTitle, setBookTitle] = useState<string>('')
-  const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(false) // Will be loaded from storage
-  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(9)
+  const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showControls, setShowControls] = useState(false)
-  const [chapterMarks, setChapterMarks] = useState<number[]>([])
   const [isPaused, setIsPaused] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
   const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('inter')
@@ -29,7 +36,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const readingEstimator = useRef(new ReadingTimeEstimator())
   const slideEntryTime = useRef<number>(0)
 
-  // Touch state for tap/swipe detection
+  // Touch state
   const touchStartX = useRef<number | null>(null)
   const touchStartTime = useRef<number>(0)
   const autoAdvanceTimerRef = useRef<number | null>(null)
@@ -37,7 +44,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const controlsTimeoutRef = useRef<number | null>(null)
   const isHolding = useRef<boolean>(false)
 
-  // Load initial slide and progress
+  // Load initial state
   useEffect(() => {
     const loadReaderState = async () => {
       try {
@@ -50,46 +57,44 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
           setBookTitle(book.title)
         }
 
-        // Load auto-advance setting from storage (default to true if not set)
+        // Load all chapters
+        const allChapters = await storageService.getAllChapters(bookId)
+        if (allChapters.length === 0) {
+          throw new Error('No chapters found')
+        }
+        setChapters(allChapters)
+
+        // Load preferences
         const autoAdvanceSetting = await storageService.getKV('autoAdvanceEnabled')
         setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
 
-        // Load font preference from storage (default to 'inter' if not set)
         const savedFont = await storageService.getKV('selectedFont')
         if (savedFont && ['inter', 'literata', 'merriweather'].includes(savedFont)) {
           setSelectedFont(savedFont as 'inter' | 'literata' | 'merriweather')
         }
 
-        // Get progress to determine starting slide
-        const progress = await storageService.getProgress(bookId)
-        const startIndex = progress?.slideIndex ?? 0
-
-        // Get total slide count
-        const count = await storageService.countSlides(bookId)
-        setTotalSlides(count)
-
-        // Load all slides to determine chapter boundaries
-        const allSlides = await storageService.getAllSlides(bookId)
-        const marks: number[] = []
-        let lastChapter = -1
-        allSlides.forEach((slide) => {
-          if (slide.chapter !== lastChapter && lastChapter !== -1) {
-            marks.push(slide.slideIndex)
-          }
-          lastChapter = slide.chapter
-        })
-        setChapterMarks(marks)
-
-        // Load the starting slide
-        const slide = await storageService.getSlide(bookId, startIndex)
-        if (!slide) {
-          throw new Error('Slide not found')
+        const savedChunkSize = await storageService.getKV('chunkSize')
+        if (savedChunkSize && typeof savedChunkSize === 'number') {
+          setChunkConfig({ maxWords: savedChunkSize })
+          setLastChunkConfig({ maxWords: savedChunkSize })
         }
 
-        setCurrentSlide(slide)
-        setCurrentIndex(startIndex)
+        // Get progress
+        const progress = await storageService.getProgress(bookId)
+        const startChapterIndex = progress?.chapterIndex ?? 0
+        const startWordOffset = progress?.wordOffset ?? 0
 
-        // Mark slide entry time
+        setCurrentChapterIndex(startChapterIndex)
+        setWordOffset(startWordOffset)
+
+        // Compute initial window
+        const initialWindow = slidingWindowHelper.computeWindow(
+          allChapters[startChapterIndex],
+          startWordOffset,
+          savedChunkSize ? { maxWords: savedChunkSize } : DEFAULT_CHUNK_CONFIG
+        )
+        setSlideWindow(initialWindow)
+
         slideEntryTime.current = Date.now()
       } catch (err) {
         console.error('Failed to load reader state', err)
@@ -102,51 +107,114 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     loadReaderState()
   }, [bookId])
 
-  // Navigate to specific slide index
-  const goToSlide = useCallback(
-    async (index: number) => {
-      if (index < 0 || index >= totalSlides) {
-        return
+  // Update window when position or config changes
+  useEffect(() => {
+    if (chapters.length === 0 || currentChapterIndex >= chapters.length) {
+      return
+    }
+
+    const currentChapter = chapters[currentChapterIndex]
+    const configChanged = chunkConfig.maxWords !== lastChunkConfig.maxWords
+
+    if (configChanged) {
+      // Config changed, recompute entire window
+      const newWindow = slidingWindowHelper.computeWindow(
+        currentChapter,
+        wordOffset,
+        chunkConfig
+      )
+      setSlideWindow(newWindow)
+      setLastChunkConfig(chunkConfig)
+      return
+    }
+
+    if (!slideWindow) {
+      // No window yet, compute initial
+      const newWindow = slidingWindowHelper.computeWindow(
+        currentChapter,
+        wordOffset,
+        chunkConfig
+      )
+      setSlideWindow(newWindow)
+      return
+    }
+
+    // Check if we need to shift window
+    if (slideWindow.chapterIndex !== currentChapterIndex ||
+        !slidingWindowHelper.isWithinWindow(slideWindow, wordOffset)) {
+      // Out of window, recompute
+      const newWindow = slidingWindowHelper.computeWindow(
+        currentChapter,
+        wordOffset,
+        chunkConfig
+      )
+      setSlideWindow(newWindow)
+    }
+  }, [chapters, currentChapterIndex, wordOffset, chunkConfig, lastChunkConfig])
+
+  // Navigate to next slide
+  const goToNext = useCallback(async () => {
+    if (!slideWindow || chapters.length === 0 || currentChapterIndex >= chapters.length) return
+
+    const currentChapter = chapters[currentChapterIndex]
+    const currentSlideIndex = slidingWindowHelper.findSlideIndexAtOffset(slideWindow, wordOffset)
+
+    // Calculate the offset where the next slide would start
+    const nextSlideOffset = slidingWindowHelper.getOffsetAtSlideIndex(slideWindow, currentSlideIndex + 1)
+
+    // Record time spent on slide
+    if (slideEntryTime.current > 0) {
+      const timeSpent = (Date.now() - slideEntryTime.current) / 1000
+      readingEstimator.current.addObservation(timeSpent)
+    }
+    slideEntryTime.current = Date.now()
+
+    // Check if next slide would be within the current chapter
+    if (nextSlideOffset < currentChapter.words) {
+      // Stay in current chapter, move to next slide
+      setWordOffset(nextSlideOffset)
+      await storageService.setProgress(bookId, currentChapterIndex, nextSlideOffset)
+    } else {
+      // We've reached the end of this chapter, move to next chapter
+      if (currentChapterIndex < chapters.length - 1) {
+        setCurrentChapterIndex(currentChapterIndex + 1)
+        setWordOffset(0)
+        await storageService.setProgress(bookId, currentChapterIndex + 1, 0)
       }
+    }
+  }, [slideWindow, chapters, wordOffset, currentChapterIndex, bookId])
 
-      // Record time spent on previous slide before navigating
-      if (slideEntryTime.current > 0) {
-        const timeSpentSeconds = (Date.now() - slideEntryTime.current) / 1000
-        readingEstimator.current.addObservation(timeSpentSeconds)
+  // Navigate to previous slide
+  const goToPrevious = useCallback(async () => {
+    if (!slideWindow || chapters.length === 0 || currentChapterIndex >= chapters.length) return
+
+    const currentSlideIndex = slidingWindowHelper.findSlideIndexAtOffset(slideWindow, wordOffset)
+
+    slideEntryTime.current = Date.now()
+
+    // Check if we can move to previous slide in current chapter
+    if (currentSlideIndex > 0) {
+      // Move to previous slide in window
+      const prevSlideOffset = slidingWindowHelper.getOffsetAtSlideIndex(slideWindow, currentSlideIndex - 1)
+      setWordOffset(prevSlideOffset)
+      await storageService.setProgress(bookId, currentChapterIndex, prevSlideOffset)
+    } else if (wordOffset > 0) {
+      // We're at the start of the window but not at the start of the chapter
+      // Move back and let the window recompute
+      setWordOffset(Math.max(0, wordOffset - 1))
+      await storageService.setProgress(bookId, currentChapterIndex, Math.max(0, wordOffset - 1))
+    } else {
+      // At start of chapter, move to previous chapter
+      if (currentChapterIndex > 0) {
+        const prevChapter = chapters[currentChapterIndex - 1]
+        setCurrentChapterIndex(currentChapterIndex - 1)
+        setWordOffset(prevChapter.words)
+        await storageService.setProgress(bookId, currentChapterIndex - 1, prevChapter.words)
       }
+    }
+  }, [slideWindow, chapters, wordOffset, currentChapterIndex, bookId])
 
-      try {
-        const slide = await storageService.getSlide(bookId, index)
-        if (!slide) {
-          console.error('Slide not found at index', index)
-          return
-        }
-
-        setCurrentSlide(slide)
-        setCurrentIndex(index)
-
-        // Mark new slide entry time
-        slideEntryTime.current = Date.now()
-
-        // Persist progress
-        await storageService.setProgress(bookId, index)
-      } catch (err) {
-        console.error('Failed to navigate to slide', err)
-        setError('Unable to load slide. Please try again.')
-      }
-    },
-    [bookId, totalSlides]
-  )
-
-  const goToPrevious = useCallback(() => {
-    goToSlide(currentIndex - 1)
-  }, [currentIndex, goToSlide])
-
-  const goToNext = useCallback(() => {
-    goToSlide(currentIndex + 1)
-  }, [currentIndex, goToSlide])
-
-  // Auto-advance functionality with progress bar
+  // Auto-advance functionality
   const stopAutoAdvance = useCallback(() => {
     if (autoAdvanceTimerRef.current !== null) {
       clearTimeout(autoAdvanceTimerRef.current)
@@ -163,30 +231,25 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     stopAutoAdvance()
     setProgressPercent(0)
 
-    // Use predicted time from estimator
     const duration = readingEstimator.current.predict() * 1000
-
     const startTime = Date.now()
 
-    // Update progress bar every 50ms
     progressIntervalRef.current = window.setInterval(() => {
       const elapsed = Date.now() - startTime
       const percent = Math.min((elapsed / duration) * 100, 100)
       setProgressPercent(percent)
     }, 50)
 
-    // Auto-advance to next slide
     autoAdvanceTimerRef.current = window.setTimeout(() => {
       goToNext()
     }, duration)
   }, [goToNext, stopAutoAdvance])
 
-  // Start auto-advance when enabled AND we have enough observations
   useEffect(() => {
     const shouldAutoAdvance =
       isAutoSwipeEnabled &&
       !isPaused &&
-      currentIndex < totalSlides - 1 &&
+      currentChapterIndex < chapters.length &&
       !loading &&
       readingEstimator.current.shouldEnableAutoplay()
 
@@ -196,7 +259,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       stopAutoAdvance()
     }
     return () => stopAutoAdvance()
-  }, [isAutoSwipeEnabled, isPaused, currentIndex, totalSlides, loading, startAutoAdvance, stopAutoAdvance])
+  }, [isAutoSwipeEnabled, isPaused, currentChapterIndex, chapters.length, loading, startAutoAdvance, stopAutoAdvance])
 
   // Hide controls after 3 seconds
   useEffect(() => {
@@ -215,7 +278,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
   }, [showControls])
 
-  // Touch event handlers for swipe and hold gestures
+  // Touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0]
     if (!touch) return
@@ -223,7 +286,6 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     touchStartTime.current = Date.now()
     isHolding.current = true
 
-    // Pause immediately when touch starts if auto-swipe is enabled
     if (isAutoSwipeEnabled) {
       setIsPaused(true)
     }
@@ -231,7 +293,6 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
-      const wasHolding = isHolding.current
       isHolding.current = false
 
       if (touchStartX.current === null) {
@@ -243,41 +304,52 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
 
       const deltaX = touch.clientX - touchStartX.current
       const touchDuration = Date.now() - touchStartTime.current
-
-      // Get tap position for zone-based navigation
       const tapX = touch.clientX
       const screenWidth = window.innerWidth
 
-      // Reset touch state
       touchStartX.current = null
 
-      // Check for tap (small movement and quick)
+      // Check for tap
       if (Math.abs(deltaX) < 10 && touchDuration < 300) {
-        // Small movement and quick - treat as tap
-        // Left third = previous, right third = next, middle = toggle controls
         const leftThird = screenWidth / 3
         const rightThird = (screenWidth * 2) / 3
 
         if (tapX < leftThird) {
-          // Tap on left - go to previous slide, resume auto-swipe
           goToPrevious()
           setIsPaused(false)
         } else if (tapX > rightThird) {
-          // Tap on right - go to next slide, resume auto-swipe
           goToNext()
           setIsPaused(false)
         } else {
-          // Tap in middle - toggle controls, DON'T change pause state
           setShowControls((prev) => !prev)
-          // Keep current pause state - don't call setIsPaused
         }
       } else {
-        // Any other touch end - resume auto-swipe
         setIsPaused(false)
       }
     },
-    [goToNext, goToPrevious, onExit]
+    [goToNext, goToPrevious]
   )
+
+  // Progress slider handler
+  const handleProgressSliderChange = useCallback(async (percentage: number) => {
+    if (chapters.length === 0) return
+
+    const position = slidingWindowHelper.findPositionFromProgress(chapters, percentage)
+    setCurrentChapterIndex(position.chapterIndex)
+    setWordOffset(position.wordOffset)
+    slideEntryTime.current = Date.now()
+    await storageService.setProgress(bookId, position.chapterIndex, position.wordOffset)
+  }, [chapters, bookId])
+
+  // Calculate current progress
+  const currentProgress = chapters.length > 0
+    ? slidingWindowHelper.calculateProgress(chapters, currentChapterIndex, wordOffset)
+    : 0
+
+  // Get current slide text
+  const currentSlideText = slideWindow
+    ? slideWindow.slides[slidingWindowHelper.findSlideIndexAtOffset(slideWindow, wordOffset)] || ''
+    : ''
 
   if (loading) {
     return (
@@ -287,7 +359,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     )
   }
 
-  if (error || !currentSlide) {
+  if (error || chapters.length === 0) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-slate-950 px-6">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 text-red-400">
@@ -313,7 +385,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       onTouchEnd={handleTouchEnd}
       style={{ touchAction: 'none' }}
     >
-      {/* Thin progress bar at top */}
+      {/* Progress bar */}
       <div className="absolute left-0 right-0 top-0 z-20 h-1 bg-slate-900">
         <div
           className="h-full bg-white transition-all duration-100 ease-linear"
@@ -321,7 +393,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         />
       </div>
 
-      {/* Main slide content area - full screen, centered, non-scrollable */}
+      {/* Main slide content */}
       <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-20">
         <div className="w-full max-w-2xl flex-1 flex items-center">
           <p
@@ -335,7 +407,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                     : 'Merriweather, serif',
             }}
           >
-            {currentSlide.text}
+            {currentSlideText}
           </p>
         </div>
         {bookTitle && (
@@ -345,7 +417,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         )}
       </main>
 
-      {/* Top bar with back button and settings - only show when controls are visible */}
+      {/* Top bar with back button and settings */}
       {showControls && (
         <>
           <div className="absolute left-4 top-4 z-10">
@@ -377,56 +449,42 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         </>
       )}
 
-      {/* Footer with interactive progress slider - only show when controls are visible */}
+      {/* Footer with progress slider */}
       {showControls && (
         <footer className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-6">
           <div className="mx-auto max-w-2xl">
             <div className="mb-2 flex items-center justify-between text-xs text-slate-400">
-              <span>
-                Slide {currentIndex + 1} of {totalSlides}
-              </span>
-              <span>{Math.round(((currentIndex + 1) / totalSlides) * 100)}%</span>
+              <span>Chapter {currentChapterIndex + 1} of {chapters.length}</span>
+              <span>{Math.round(currentProgress)}%</span>
             </div>
             <div className="relative h-8 touch-none">
-              {/* Clickable track area */}
               <div
                 className="absolute left-0 right-0 top-3 h-2 cursor-pointer rounded-full bg-slate-800"
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect()
                   const clickX = e.clientX - rect.left
-                  const percent = clickX / rect.width
-                  const targetIndex = Math.floor(percent * totalSlides)
-                  goToSlide(Math.max(0, Math.min(totalSlides - 1, targetIndex)))
+                  const percent = (clickX / rect.width) * 100
+                  handleProgressSliderChange(percent)
                 }}
               >
-                {/* Chapter notches */}
-                {chapterMarks.map((mark) => (
-                  <div
-                    key={mark}
-                    className="absolute top-0 h-full w-0.5 bg-slate-600"
-                    style={{ left: `${(mark / totalSlides) * 100}%` }}
-                  />
-                ))}
                 {/* Progress fill */}
                 <div
                   className="absolute left-0 top-0 h-full rounded-full bg-indigo-500 transition-all duration-300"
-                  style={{ width: `${((currentIndex + 1) / totalSlides) * 100}%` }}
+                  style={{ width: `${currentProgress}%` }}
                 />
               </div>
-              {/* Draggable thumb */}
               <input
                 type="range"
                 min="0"
-                max={totalSlides - 1}
-                value={currentIndex}
+                max="100"
+                step="0.1"
+                value={currentProgress}
                 onChange={(e) => {
-                  const targetIndex = Number(e.target.value)
-                  goToSlide(targetIndex)
+                  const percent = Number(e.target.value)
+                  handleProgressSliderChange(percent)
                 }}
                 className="absolute left-0 top-0 h-8 w-full cursor-pointer appearance-none bg-transparent"
-                style={{
-                  WebkitAppearance: 'none',
-                }}
+                style={{ WebkitAppearance: 'none' }}
               />
             </div>
           </div>
@@ -456,7 +514,6 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                 onClick={async () => {
                   const newValue = !isAutoSwipeEnabled
                   setIsAutoSwipeEnabled(newValue)
-                  // Save to IndexedDB
                   await storageService.setKV('autoAdvanceEnabled', newValue)
                 }}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
@@ -469,6 +526,31 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Slide size slider */}
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-slate-300">Slide Size</label>
+              <div className="mt-3 flex items-center gap-3">
+                <span className="text-xs text-slate-400">Smaller</span>
+                <input
+                  type="range"
+                  min="20"
+                  max="100"
+                  step="10"
+                  value={chunkConfig.maxWords}
+                  onChange={async (e) => {
+                    const newSize = Number(e.target.value)
+                    setChunkConfig({ maxWords: newSize })
+                    await storageService.setKV('chunkSize', newSize)
+                  }}
+                  className="flex-1"
+                />
+                <span className="text-xs text-slate-400">Larger</span>
+              </div>
+              <div className="mt-2 text-center text-xs text-slate-400">
+                {chunkConfig.maxWords} words per slide
+              </div>
             </div>
 
             {/* Reading time status */}

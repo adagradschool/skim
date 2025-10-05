@@ -2,7 +2,7 @@ import { openDB } from 'idb'
 import type { DBSchema, IDBPDatabase } from 'idb'
 
 const DB_NAME = 'skim-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 // Define the database schema
 export interface SkimDB extends DBSchema {
@@ -28,6 +28,17 @@ export interface SkimDB extends DBSchema {
     }
     indexes: { 'by-book': string }
   }
+  chapters: {
+    key: [string, number] // [bookId, chapterIndex]
+    value: {
+      bookId: string
+      chapterIndex: number
+      title: string
+      text: string
+      words: number
+    }
+    indexes: { 'by-book': string }
+  }
   slides: {
     key: [string, number] // [bookId, slideIndex]
     value: {
@@ -43,7 +54,8 @@ export interface SkimDB extends DBSchema {
     key: string // bookId
     value: {
       bookId: string
-      slideIndex: number
+      chapterIndex: number
+      characterOffset: number
       updatedAt: number
     }
   }
@@ -64,7 +76,7 @@ let dbPromise: Promise<IDBPDatabase<SkimDB>> | null = null
 export async function getDB(): Promise<IDBPDatabase<SkimDB>> {
   if (!dbPromise) {
     dbPromise = openDB<SkimDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, newVersion, transaction) {
+      async upgrade(db, oldVersion, newVersion, transaction) {
         // Version 1: Initial schema
         if (oldVersion < 1) {
           // Books store
@@ -91,8 +103,26 @@ export async function getDB(): Promise<IDBPDatabase<SkimDB>> {
           db.createObjectStore('kv', { keyPath: 'key' })
         }
 
-        // Future migrations go here
-        // if (oldVersion < 2) { ... }
+        // Version 2: Add chapters store, nuke old slides-based data
+        if (oldVersion < 2) {
+          // Create chapters store
+          const chaptersStore = db.createObjectStore('chapters', {
+            keyPath: ['bookId', 'chapterIndex'],
+          })
+          chaptersStore.createIndex('by-book', 'bookId')
+
+          // Nuke all old data (hard migration)
+          const bookStore = transaction.objectStore('books')
+          await bookStore.clear()
+
+          const slidesStore = transaction.objectStore('slides')
+          await slidesStore.clear()
+
+          const progressStore = transaction.objectStore('progress')
+          await progressStore.clear()
+
+          console.log('Database migrated to v2: Chapters-based storage. All old data cleared.')
+        }
       },
       blocked() {
         console.warn('Database upgrade blocked by another connection')

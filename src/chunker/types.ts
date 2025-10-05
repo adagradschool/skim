@@ -1,19 +1,7 @@
-export interface ChapterInput {
-  chapter: number
-  text: string
+export interface ChunkConfig {
+  maxWords: number  // Target words per slide (default 50)
 }
 
-export interface Slide {
-  bookId: string
-  slideIndex: number
-  chapter: number
-  text: string
-  words: number
-}
-
-export interface ChunkResult {
-  slides: Slide[]
-  totalSlides: number
-  totalWords: number
-  averageWordsPerSlide: number
+export const DEFAULT_CHUNK_CONFIG: ChunkConfig = {
+  maxWords: 50,
 }

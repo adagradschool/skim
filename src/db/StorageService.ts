@@ -1,5 +1,5 @@
 import { getDB } from './db'
-import type { Book, BookAsset, Slide, Progress, KVPair } from './types'
+import type { Book, BookAsset, Chapter, Slide, Progress, KVPair } from './types'
 
 /**
  * Storage service for managing all IndexedDB operations
@@ -25,12 +25,13 @@ export class StorageService {
 
   async deleteBook(id: string): Promise<void> {
     const db = await getDB()
-    const tx = db.transaction(['books', 'bookAssets', 'slides', 'progress'], 'readwrite')
+    const tx = db.transaction(['books', 'bookAssets', 'chapters', 'slides', 'progress'], 'readwrite')
 
     // Delete book and all related data
     await Promise.all([
       tx.objectStore('books').delete(id),
       this.deleteBookAssets(id, tx),
+      this.deleteChapters(id, tx),
       this.deleteSlides(id, tx),
       tx.objectStore('progress').delete(id),
     ])
@@ -69,7 +70,50 @@ export class StorageService {
     await Promise.all(assets.map((key: any) => store.delete(key)))
   }
 
-  // Slides
+  // Chapters
+  async saveChapter(chapter: Chapter): Promise<void> {
+    const db = await getDB()
+    await db.put('chapters', chapter)
+  }
+
+  async saveChapters(chapters: Chapter[]): Promise<void> {
+    const db = await getDB()
+    const tx = db.transaction('chapters', 'readwrite')
+
+    // Batch insert in chunks to avoid blocking
+    const CHUNK_SIZE = 100
+    for (let i = 0; i < chapters.length; i += CHUNK_SIZE) {
+      const chunk = chapters.slice(i, i + CHUNK_SIZE)
+      await Promise.all(chunk.map((chapter) => tx.store.put(chapter)))
+    }
+
+    await tx.done
+  }
+
+  async getChapter(bookId: string, chapterIndex: number): Promise<Chapter | undefined> {
+    const db = await getDB()
+    return db.get('chapters', [bookId, chapterIndex])
+  }
+
+  async getAllChapters(bookId: string): Promise<Chapter[]> {
+    const db = await getDB()
+    return db.getAllFromIndex('chapters', 'by-book', bookId)
+  }
+
+  async countChapters(bookId: string): Promise<number> {
+    const db = await getDB()
+    return db.countFromIndex('chapters', 'by-book', bookId)
+  }
+
+  private async deleteChapters(bookId: string, tx?: any): Promise<void> {
+    const db = tx ? undefined : await getDB()
+    const store = tx ? tx.objectStore('chapters') : db!.transaction('chapters', 'readwrite').objectStore('chapters')
+
+    const chapters = await store.index('by-book').getAllKeys(bookId)
+    await Promise.all(chapters.map((key: any) => store.delete(key)))
+  }
+
+  // Slides (deprecated, kept for backward compatibility)
   async saveSlide(slide: Slide): Promise<void> {
     const db = await getDB()
     await db.put('slides', slide)
@@ -166,11 +210,12 @@ export class StorageService {
     return db.get('progress', bookId)
   }
 
-  async setProgress(bookId: string, slideIndex: number): Promise<void> {
+  async setProgress(bookId: string, chapterIndex: number, wordOffset: number): Promise<void> {
     const db = await getDB()
     await db.put('progress', {
       bookId,
-      slideIndex,
+      chapterIndex,
+      wordOffset,
       updatedAt: Date.now(),
     })
   }
@@ -205,11 +250,12 @@ export class StorageService {
   // Utility methods
   async clear(): Promise<void> {
     const db = await getDB()
-    const tx = db.transaction(['books', 'bookAssets', 'slides', 'progress', 'kv'], 'readwrite')
+    const tx = db.transaction(['books', 'bookAssets', 'chapters', 'slides', 'progress', 'kv'], 'readwrite')
 
     await Promise.all([
       tx.objectStore('books').clear(),
       tx.objectStore('bookAssets').clear(),
+      tx.objectStore('chapters').clear(),
       tx.objectStore('slides').clear(),
       tx.objectStore('progress').clear(),
       tx.objectStore('kv').clear(),
