@@ -249,6 +249,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     const shouldAutoAdvance =
       isAutoSwipeEnabled &&
       !isPaused &&
+      !showSettings &&
       currentChapterIndex < chapters.length &&
       !loading &&
       readingEstimator.current.shouldEnableAutoplay()
@@ -259,7 +260,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       stopAutoAdvance()
     }
     return () => stopAutoAdvance()
-  }, [isAutoSwipeEnabled, isPaused, currentChapterIndex, chapters.length, loading, startAutoAdvance, stopAutoAdvance])
+  }, [isAutoSwipeEnabled, isPaused, showSettings, currentChapterIndex, chapters.length, loading, startAutoAdvance, stopAutoAdvance])
 
   // Hide controls after 3 seconds
   useEffect(() => {
