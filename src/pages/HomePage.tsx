@@ -119,7 +119,9 @@ export function HomePage() {
     }
   }, [refreshLibrary])
 
-  const handleOpenBook = useCallback((bookId: string) => {
+  const handleOpenBook = useCallback(async (bookId: string) => {
+    // Track last opened book
+    await storageService.setKV('lastOpenedBookId', bookId)
     setReadingBookId(bookId)
   }, [])
 
