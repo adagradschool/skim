@@ -54,6 +54,12 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         const autoAdvanceSetting = await storageService.getKV('autoAdvanceEnabled')
         setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
 
+        // Load font preference from storage (default to 'inter' if not set)
+        const savedFont = await storageService.getKV('selectedFont')
+        if (savedFont && ['inter', 'literata', 'merriweather'].includes(savedFont)) {
+          setSelectedFont(savedFont as 'inter' | 'literata' | 'merriweather')
+        }
+
         // Get progress to determine starting slide
         const progress = await storageService.getProgress(bookId)
         const startIndex = progress?.slideIndex ?? 0
@@ -500,7 +506,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
               <div className="mt-3 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setSelectedFont('inter')}
+                  onClick={async () => {
+                    setSelectedFont('inter')
+                    await storageService.setKV('selectedFont', 'inter')
+                  }}
                   className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
                     selectedFont === 'inter'
                       ? 'border-indigo-500 bg-indigo-500/20'
@@ -513,7 +522,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedFont('literata')}
+                  onClick={async () => {
+                    setSelectedFont('literata')
+                    await storageService.setKV('selectedFont', 'literata')
+                  }}
                   className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
                     selectedFont === 'literata'
                       ? 'border-indigo-500 bg-indigo-500/20'
@@ -526,7 +538,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedFont('merriweather')}
+                  onClick={async () => {
+                    setSelectedFont('merriweather')
+                    await storageService.setKV('selectedFont', 'merriweather')
+                  }}
                   className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
                     selectedFont === 'merriweather'
                       ? 'border-indigo-500 bg-indigo-500/20'

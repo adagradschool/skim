@@ -1,0 +1,275 @@
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZg.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZg.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYMZg.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVjaHPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVbaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVfaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVTaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVXaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVLaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV7aDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV5aDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV_aDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVzaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVraDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVjaDPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVfaPPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVLaPPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVHaPPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV_aPPYLanFLHpPf2TbBG_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVjaHPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVbaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVfaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVTaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVXaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVLaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVDaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV7aDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV5aDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV_aDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVzaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVraDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVjaDPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVfaPPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVLaPPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oVHaPPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/or3PQ6P12-iJxAIgLa78DkrbXsDgk0oV_aPPYLanFLHpPf2TbCO_F_Y.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Merriweather';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: normal;
+  font-display: swap;
+  src: url(/fonts/u-4D0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiScCmDxhtNOKl8yDr3icqEw.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Merriweather';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: normal;
+  font-display: swap;
+  src: url(/fonts/u-4D0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiScCmDxhtNOKl8yDrOSAqEw.ttf) format('truetype');
+}
