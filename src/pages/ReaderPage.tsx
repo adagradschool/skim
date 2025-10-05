@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
 import type { Slide } from '@/db/types'
 import { AlertTriangle, Loader2, Settings, ArrowLeft } from 'lucide-react'
+import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 
 interface ReaderPageProps {
   bookId: string
@@ -23,6 +24,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
   const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('inter')
+
+  // Reading time estimation
+  const readingEstimator = useRef(new ReadingTimeEstimator())
+  const slideEntryTime = useRef<number>(0)
 
   // Touch state for tap/swipe detection
   const touchStartX = useRef<number | null>(null)
@@ -77,6 +82,9 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
 
         setCurrentSlide(slide)
         setCurrentIndex(startIndex)
+
+        // Mark slide entry time
+        slideEntryTime.current = Date.now()
       } catch (err) {
         console.error('Failed to load reader state', err)
         setError('Unable to load book. Please try again.')
@@ -95,6 +103,12 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         return
       }
 
+      // Record time spent on previous slide before navigating
+      if (slideEntryTime.current > 0) {
+        const timeSpentSeconds = (Date.now() - slideEntryTime.current) / 1000
+        readingEstimator.current.addObservation(timeSpentSeconds)
+      }
+
       try {
         const slide = await storageService.getSlide(bookId, index)
         if (!slide) {
@@ -104,6 +118,9 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
 
         setCurrentSlide(slide)
         setCurrentIndex(index)
+
+        // Mark new slide entry time
+        slideEntryTime.current = Date.now()
 
         // Persist progress
         await storageService.setProgress(bookId, index)
@@ -140,8 +157,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     stopAutoAdvance()
     setProgressPercent(0)
 
+    // Use predicted time from estimator
+    const duration = readingEstimator.current.predict() * 1000
+
     const startTime = Date.now()
-    const duration = autoAdvanceSeconds * 1000
 
     // Update progress bar every 50ms
     progressIntervalRef.current = window.setInterval(() => {
@@ -154,11 +173,18 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     autoAdvanceTimerRef.current = window.setTimeout(() => {
       goToNext()
     }, duration)
-  }, [autoAdvanceSeconds, goToNext, stopAutoAdvance])
+  }, [goToNext, stopAutoAdvance])
 
-  // Start auto-advance when enabled
+  // Start auto-advance when enabled AND we have enough observations
   useEffect(() => {
-    if (isAutoSwipeEnabled && !isPaused && currentIndex < totalSlides - 1 && !loading) {
+    const shouldAutoAdvance =
+      isAutoSwipeEnabled &&
+      !isPaused &&
+      currentIndex < totalSlides - 1 &&
+      !loading &&
+      readingEstimator.current.shouldEnableAutoplay()
+
+    if (shouldAutoAdvance) {
       startAutoAdvance()
     } else {
       stopAutoAdvance()
@@ -439,23 +465,32 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
               </button>
             </div>
 
-            {/* Speed slider */}
+            {/* Reading time status */}
             <div className="mt-6">
               <label className="block text-sm font-medium text-slate-300">
-                Auto-swipe speed
+                Auto-swipe timing
               </label>
-              <input
-                type="range"
-                min="3"
-                max="15"
-                step="1"
-                value={autoAdvanceSeconds}
-                onChange={(e) => setAutoAdvanceSeconds(Number(e.target.value))}
-                disabled={!isAutoSwipeEnabled}
-                className="mt-3 w-full"
-              />
-              <div className="mt-2 text-center text-sm text-slate-400">
-                {autoAdvanceSeconds} seconds per slide
+              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-800 p-3">
+                {readingEstimator.current.shouldEnableAutoplay() ? (
+                  <div className="text-sm text-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span>Predicted time:</span>
+                      <span className="font-semibold text-indigo-400">
+                        {readingEstimator.current.predict().toFixed(1)}s
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      Based on {readingEstimator.current.getObservationCount()} slides read
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-400">
+                    Learning your reading speed...
+                    <div className="mt-1 text-xs">
+                      {readingEstimator.current.getObservationCount()} of 5 slides
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
