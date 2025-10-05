@@ -30,7 +30,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const [showControls, setShowControls] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
-  const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('inter')
+  const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('literata')
 
   // Reading time estimation
   const readingEstimator = useRef(new ReadingTimeEstimator())
