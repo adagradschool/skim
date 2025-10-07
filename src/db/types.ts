@@ -38,6 +38,15 @@ export interface Progress {
   updatedAt: number
 }
 
+export interface Bookmark {
+  id: string
+  bookId: string
+  slideIndex: number
+  annotation: string
+  snippet: string
+  timestamp: number
+}
+
 export interface KVPair {
   key: string
   value: any

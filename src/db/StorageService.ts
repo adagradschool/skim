@@ -1,5 +1,5 @@
 import { getDB } from './db'
-import type { Book, BookAsset, Chapter, Slide, Progress, KVPair } from './types'
+import type { Book, BookAsset, Chapter, Slide, Progress, Bookmark, KVPair } from './types'
 
 /**
  * Storage service for managing all IndexedDB operations
@@ -25,7 +25,7 @@ export class StorageService {
 
   async deleteBook(id: string): Promise<void> {
     const db = await getDB()
-    const tx = db.transaction(['books', 'bookAssets', 'chapters', 'slides', 'progress'], 'readwrite')
+    const tx = db.transaction(['books', 'bookAssets', 'chapters', 'slides', 'progress', 'bookmarks'], 'readwrite')
 
     // Delete book and all related data
     await Promise.all([
@@ -34,6 +34,7 @@ export class StorageService {
       this.deleteChapters(id, tx),
       this.deleteSlides(id, tx),
       tx.objectStore('progress').delete(id),
+      this.deleteBookmarks(id, tx),
     ])
 
     await tx.done
@@ -224,6 +225,47 @@ export class StorageService {
     await db.delete('progress', bookId)
   }
 
+  // Bookmarks
+  async createBookmark(bookmark: Omit<Bookmark, 'id' | 'timestamp'>): Promise<string> {
+    const db = await getDB()
+    const id = `${bookmark.bookId}-${bookmark.slideIndex}-${Date.now()}`
+    const newBookmark: Bookmark = {
+      ...bookmark,
+      id,
+      timestamp: Date.now(),
+    }
+    await db.put('bookmarks', newBookmark)
+    return id
+  }
+
+  async getBookmark(id: string): Promise<Bookmark | undefined> {
+    const db = await getDB()
+    return db.get('bookmarks', id)
+  }
+
+  async getAllBookmarks(bookId: string): Promise<Bookmark[]> {
+    const db = await getDB()
+    const bookmarks = await db.getAllFromIndex('bookmarks', 'by-timestamp', IDBKeyRange.bound(
+      [bookId, 0],
+      [bookId, Date.now() + 1]
+    ))
+    // Return most recent first
+    return bookmarks.reverse()
+  }
+
+  async deleteBookmark(id: string): Promise<void> {
+    const db = await getDB()
+    await db.delete('bookmarks', id)
+  }
+
+  private async deleteBookmarks(bookId: string, tx?: any): Promise<void> {
+    const db = tx ? undefined : await getDB()
+    const store = tx ? tx.objectStore('bookmarks') : db!.transaction('bookmarks', 'readwrite').objectStore('bookmarks')
+
+    const bookmarks = await store.index('by-book').getAllKeys(bookId)
+    await Promise.all(bookmarks.map((key: any) => store.delete(key)))
+  }
+
   // KV Store
   async getKV(key: string): Promise<any> {
     const db = await getDB()
@@ -249,7 +291,7 @@ export class StorageService {
   // Utility methods
   async clear(): Promise<void> {
     const db = await getDB()
-    const tx = db.transaction(['books', 'bookAssets', 'chapters', 'slides', 'progress', 'kv'], 'readwrite')
+    const tx = db.transaction(['books', 'bookAssets', 'chapters', 'slides', 'progress', 'bookmarks', 'kv'], 'readwrite')
 
     await Promise.all([
       tx.objectStore('books').clear(),
@@ -257,6 +299,7 @@ export class StorageService {
       tx.objectStore('chapters').clear(),
       tx.objectStore('slides').clear(),
       tx.objectStore('progress').clear(),
+      tx.objectStore('bookmarks').clear(),
       tx.objectStore('kv').clear(),
     ])
 
