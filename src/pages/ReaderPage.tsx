@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
-import type { Chapter } from '@/db/types'
+import type { Slide, Chapter } from '@/db/types'
 import { AlertTriangle, Loader2, Settings, ArrowLeft, List } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
-import { chunkerService } from '@/chunker/ChunkerService'
-import type { ChunkConfig } from '@/chunker/types'
-import { DEFAULT_CHUNK_CONFIG } from '@/chunker/types'
 
 interface ReaderPageProps {
   bookId: string
@@ -14,11 +11,9 @@ interface ReaderPageProps {
 
 export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   // Core state
+  const [slides, setSlides] = useState<Slide[]>([])
   const [chapters, setChapters] = useState<Chapter[]>([])
-  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0)
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0)
-  const [slides, setSlides] = useState<string[]>([])
-  const [chunkConfig, setChunkConfig] = useState<ChunkConfig>(DEFAULT_CHUNK_CONFIG)
 
   // UI state
   const [loading, setLoading] = useState(true)
@@ -49,27 +44,6 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const inactivityTimerRef = useRef<number | null>(null)
   const INACTIVITY_TIMEOUT = 40 * 60 * 1000 // 40 minutes in milliseconds
 
-  // Helper: Convert word offset to slide index
-  const wordOffsetToSlideIndex = useCallback((wordOffset: number, slides: string[]): number => {
-    let currentWordCount = 0
-    for (let i = 0; i < slides.length; i++) {
-      const slideWordCount = slides[i].split(/\s+/).filter(w => w.trim().length > 0).length
-      if (currentWordCount + slideWordCount > wordOffset) {
-        return i
-      }
-      currentWordCount += slideWordCount
-    }
-    return Math.max(0, slides.length - 1)
-  }, [])
-
-  // Helper: Convert slide index to word offset
-  const slideIndexToWordOffset = useCallback((slideIndex: number, slides: string[]): number => {
-    let wordOffset = 0
-    for (let i = 0; i < slideIndex && i < slides.length; i++) {
-      wordOffset += slides[i].split(/\s+/).filter(w => w.trim().length > 0).length
-    }
-    return wordOffset
-  }, [])
 
   // Wake lock functions
   const requestWakeLock = useCallback(async () => {
@@ -120,11 +94,16 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
           setBookTitle(book.title)
         }
 
-        // Load all chapters
-        const allChapters = await storageService.getAllChapters(bookId)
-        if (allChapters.length === 0) {
-          throw new Error('No chapters found')
+        // Load all slides and chapters
+        const [allSlides, allChapters] = await Promise.all([
+          storageService.getAllSlides(bookId),
+          storageService.getAllChapters(bookId),
+        ])
+
+        if (allSlides.length === 0) {
+          throw new Error('No slides found')
         }
+        setSlides(allSlides)
         setChapters(allChapters)
 
         // Load preferences
@@ -136,29 +115,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
           setSelectedFont(savedFont as 'inter' | 'literata' | 'merriweather')
         }
 
-        const savedChunkSize = await storageService.getKV('chunkSize')
-        const config = savedChunkSize && typeof savedChunkSize === 'number'
-          ? { maxWords: savedChunkSize }
-          : DEFAULT_CHUNK_CONFIG
-        if (savedChunkSize && typeof savedChunkSize === 'number') {
-          setChunkConfig(config)
-        }
-
         // Get progress
         const progress = await storageService.getProgress(bookId)
-        const startChapterIndex = progress?.chapterIndex ?? 0
-        const startWordOffset = progress?.wordOffset ?? 0
-
-        setCurrentChapterIndex(startChapterIndex)
-
-        // Chunk the initial chapter
-        const initialChapter = allChapters[startChapterIndex]
-        const initialSlides = chunkerService.chunkText(initialChapter.text, config)
-        setSlides(initialSlides)
-
-        // Find the slide index for the word offset
-        const initialSlideIndex = wordOffsetToSlideIndex(startWordOffset, initialSlides)
-        setCurrentSlideIndex(initialSlideIndex)
+        const startSlideIndex = progress?.slideIndex ?? 0
+        setCurrentSlideIndex(startSlideIndex)
 
         slideEntryTime.current = Date.now()
       } catch (err) {
@@ -170,7 +130,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
 
     loadReaderState()
-  }, [bookId, wordOffsetToSlideIndex])
+  }, [bookId])
 
   // Wake lock initialization and visibility handling
   useEffect(() => {
@@ -206,40 +166,9 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
   }, [requestWakeLock, releaseWakeLock, resetInactivityTimer])
 
-  // Rechunk entire chapter when chapter or config changes
-  useEffect(() => {
-    if (chapters.length === 0 || currentChapterIndex >= chapters.length) {
-      return
-    }
-
-    const currentChapter = chapters[currentChapterIndex]
-    const newSlides = chunkerService.chunkText(currentChapter.text, chunkConfig)
-
-    // Only update if slides actually changed
-    const slidesChanged = newSlides.length !== slides.length ||
-      newSlides.some((slide, i) => slide !== slides[i])
-
-    if (!slidesChanged) {
-      return
-    }
-
-    setSlides(newSlides)
-
-    // When config changes, try to maintain approximate position
-    // by converting current position to word offset and back
-    if (slides.length > 0 && currentSlideIndex < slides.length) {
-      const wordOffset = slideIndexToWordOffset(currentSlideIndex, slides)
-      const newSlideIndex = wordOffsetToSlideIndex(wordOffset, newSlides)
-      setCurrentSlideIndex(newSlideIndex)
-    } else {
-      // First load or invalid state, start at 0
-      setCurrentSlideIndex(0)
-    }
-  }, [chapters, currentChapterIndex, chunkConfig, slides, currentSlideIndex, wordOffsetToSlideIndex, slideIndexToWordOffset])
-
   // Navigate to next slide
   const goToNext = useCallback(async () => {
-    if (slides.length === 0 || chapters.length === 0 || currentChapterIndex >= chapters.length) return
+    if (slides.length === 0) return
 
     // Reset inactivity timer on user interaction
     resetInactivityTimer()
@@ -251,54 +180,30 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
     slideEntryTime.current = Date.now()
 
-    // Check if we can move to next slide in current chapter
+    // Move to next slide if not at end
     if (currentSlideIndex < slides.length - 1) {
-      // Move to next slide
-      setCurrentSlideIndex(currentSlideIndex + 1)
-      const wordOffset = slideIndexToWordOffset(currentSlideIndex + 1, slides)
-      await storageService.setProgress(bookId, currentChapterIndex, wordOffset)
-    } else {
-      // At end of chapter, move to next chapter
-      if (currentChapterIndex < chapters.length - 1) {
-        setCurrentChapterIndex(currentChapterIndex + 1)
-        setCurrentSlideIndex(0)
-        await storageService.setProgress(bookId, currentChapterIndex + 1, 0)
-      }
+      const newIndex = currentSlideIndex + 1
+      setCurrentSlideIndex(newIndex)
+      await storageService.setProgress(bookId, newIndex)
     }
-  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, slideIndexToWordOffset, resetInactivityTimer])
+  }, [slides, currentSlideIndex, bookId, resetInactivityTimer])
 
   // Navigate to previous slide
   const goToPrevious = useCallback(async () => {
-    if (slides.length === 0 || chapters.length === 0 || currentChapterIndex >= chapters.length) return
+    if (slides.length === 0) return
 
     // Reset inactivity timer on user interaction
     resetInactivityTimer()
 
     slideEntryTime.current = Date.now()
 
-    // Check if we can move to previous slide in current chapter
+    // Move to previous slide if not at start
     if (currentSlideIndex > 0) {
-      // Move to previous slide
-      setCurrentSlideIndex(currentSlideIndex - 1)
-      const wordOffset = slideIndexToWordOffset(currentSlideIndex - 1, slides)
-      await storageService.setProgress(bookId, currentChapterIndex, wordOffset)
-    } else {
-      // At start of chapter, move to previous chapter
-      if (currentChapterIndex > 0) {
-        const prevChapterIndex = currentChapterIndex - 1
-        setCurrentChapterIndex(prevChapterIndex)
-
-        // Chunk the previous chapter to find its last slide
-        const prevChapter = chapters[prevChapterIndex]
-        const prevSlides = chunkerService.chunkText(prevChapter.text, chunkConfig)
-        const lastSlideIndex = Math.max(0, prevSlides.length - 1)
-        setCurrentSlideIndex(lastSlideIndex)
-
-        const wordOffset = slideIndexToWordOffset(lastSlideIndex, prevSlides)
-        await storageService.setProgress(bookId, prevChapterIndex, wordOffset)
-      }
+      const newIndex = currentSlideIndex - 1
+      setCurrentSlideIndex(newIndex)
+      await storageService.setProgress(bookId, newIndex)
     }
-  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, chunkConfig, slideIndexToWordOffset, resetInactivityTimer])
+  }, [slides, currentSlideIndex, bookId, resetInactivityTimer])
 
   // Auto-advance functionality
   const stopAutoAdvance = useCallback(() => {
@@ -337,7 +242,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       !isPaused &&
       !showSettings &&
       !showIndex &&
-      currentChapterIndex < chapters.length &&
+      currentSlideIndex < slides.length &&
       !loading &&
       readingEstimator.current.shouldEnableAutoplay()
 
@@ -347,7 +252,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       stopAutoAdvance()
     }
     return () => stopAutoAdvance()
-  }, [isAutoSwipeEnabled, isPaused, showSettings, showIndex, currentChapterIndex, chapters.length, loading, startAutoAdvance, stopAutoAdvance])
+  }, [isAutoSwipeEnabled, isPaused, showSettings, showIndex, currentSlideIndex, slides.length, loading, startAutoAdvance, stopAutoAdvance])
 
   // Hide controls after 3 seconds
   useEffect(() => {
@@ -421,32 +326,18 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     [goToNext, goToPrevious]
   )
 
-  // Helper: Get total words across all chapters
-  const getTotalWords = useCallback((chapters: Chapter[]): number => {
-    return chapters.reduce((sum, ch) => sum + ch.words, 0)
-  }, [])
-
-  // Helper: Get words before a chapter
-  const getWordsBeforeChapter = useCallback((chapters: Chapter[], chapterIndex: number): number => {
-    return chapters.slice(0, chapterIndex).reduce((sum, ch) => sum + ch.words, 0)
-  }, [])
-
-  // Calculate current progress
-  const currentProgress = chapters.length > 0
-    ? (() => {
-        const totalWords = getTotalWords(chapters)
-        if (totalWords === 0) return 0
-        const wordsBefore = getWordsBeforeChapter(chapters, currentChapterIndex)
-        const currentWordOffset = slideIndexToWordOffset(currentSlideIndex, slides)
-        const currentPosition = wordsBefore + currentWordOffset
-        return (currentPosition / totalWords) * 100
-      })()
+  // Calculate current progress (match HomePage calculation)
+  const currentProgress = slides.length > 0
+    ? Math.min(100, Math.round((currentSlideIndex / Math.max(slides.length - 1, 1)) * 100))
     : 0
 
   // Get current slide text
   const currentSlideText = slides.length > 0 && currentSlideIndex < slides.length
-    ? slides[currentSlideIndex]
+    ? slides[currentSlideIndex].text
     : ''
+
+  // Get current chapter
+  const currentChapter = slides[currentSlideIndex]?.chapter
 
   if (loading) {
     return (
@@ -456,7 +347,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     )
   }
 
-  if (error || chapters.length === 0) {
+  if (error || slides.length === 0) {
     return (
       <div className="flex h-screen flex-col items-center justify-center bg-slate-950 px-6">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 text-red-400">
@@ -568,6 +459,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         </footer>
       )}
 
+
       {/* Chapter Index panel */}
       {showIndex ? (
         <div
@@ -583,16 +475,15 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
               <h2 className="text-lg font-semibold">Chapters</h2>
             </div>
             <div className="overflow-y-auto flex-1 px-4 py-2">
-              {chapters.map((chapter, index) => {
-                const isActive = index === currentChapterIndex
+              {chapters.map((chapter) => {
+                const isActive = chapter.chapterIndex === currentChapter
                 return (
                   <button
-                    key={index}
+                    key={chapter.chapterIndex}
                     type="button"
                     onClick={async () => {
-                      setCurrentChapterIndex(index)
-                      setCurrentSlideIndex(0)
-                      await storageService.setProgress(bookId, index, 0)
+                      setCurrentSlideIndex(chapter.firstSlideIndex)
+                      await storageService.setProgress(bookId, chapter.firstSlideIndex)
                       setShowIndex(false)
                       slideEntryTime.current = Date.now()
                     }}
@@ -605,10 +496,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="text-sm font-medium text-slate-100">
-                          {chapter.title || `Chapter ${index + 1}`}
+                          {chapter.title}
                         </div>
                         <div className="text-xs text-slate-400 mt-1">
-                          {chapter.words.toLocaleString()} words
+                          {chapter.slideCount} {chapter.slideCount === 1 ? 'slide' : 'slides'}
                         </div>
                       </div>
                       {isActive && (
@@ -669,31 +560,6 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
                   }`}
                 />
               </button>
-            </div>
-
-            {/* Slide size slider */}
-            <div className="mt-6">
-              <label className="block text-sm font-medium text-slate-300">Slide Size</label>
-              <div className="mt-3 flex items-center gap-3">
-                <span className="text-xs text-slate-400">Smaller</span>
-                <input
-                  type="range"
-                  min="20"
-                  max="100"
-                  step="10"
-                  value={chunkConfig.maxWords}
-                  onChange={async (e) => {
-                    const newSize = Number(e.target.value)
-                    setChunkConfig({ maxWords: newSize })
-                    await storageService.setKV('chunkSize', newSize)
-                  }}
-                  className="flex-1"
-                />
-                <span className="text-xs text-slate-400">Larger</span>
-              </div>
-              <div className="mt-2 text-center text-xs text-slate-400">
-                {chunkConfig.maxWords} words per slide
-              </div>
             </div>
 
             {/* Reading time status */}

@@ -578,12 +578,16 @@ function LibraryCard({ entry, onDelete, onOpen }: LibraryCardProps) {
         </button>
         {menuOpen ? (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="fixed inset-0 z-10" onClick={(e) => {
+              e.stopPropagation()
+              setMenuOpen(false)
+            }} />
             <div className="absolute right-0 top-10 z-20 w-40 rounded-lg border border-slate-700 bg-slate-800 py-1 shadow-xl">
               <button
                 type="button"
                 className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-400 transition hover:bg-slate-700"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
                   setMenuOpen(false)
                   onDelete()
                 }}

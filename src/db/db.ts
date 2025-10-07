@@ -54,8 +54,7 @@ export interface SkimDB extends DBSchema {
     key: string // bookId
     value: {
       bookId: string
-      chapterIndex: number
-      characterOffset: number
+      slideIndex: number
       updatedAt: number
     }
   }

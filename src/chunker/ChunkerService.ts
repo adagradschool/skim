@@ -1,21 +1,20 @@
-import type { ChunkConfig } from './types'
-import { DEFAULT_CHUNK_CONFIG } from './types'
+const MAX_WORDS_PER_SLIDE = 60
+const TARGET_SENTENCES_PER_SLIDE = 2
 
 export class ChunkerService {
   /**
-   * Chunk text into slides on-the-fly with sentence-aware boundaries
+   * Chunk text into slides: 2 sentences or 50 words max per slide
    * @param text - Full chapter text
-   * @param config - Chunking configuration
    * @returns Array of slide texts
    */
-  chunkText(text: string, config: ChunkConfig = DEFAULT_CHUNK_CONFIG): string[] {
+  chunkText(text: string): string[] {
     // Handle empty or whitespace-only text
     if (!text || text.trim().length === 0) {
       return []
     }
 
     const sentences = this.splitIntoSentences(text)
-    return this.groupSentencesIntoSlides(sentences, config)
+    return this.groupSentencesIntoSlides(sentences)
   }
 
   /**
@@ -36,19 +35,15 @@ export class ChunkerService {
       return [text.trim()]
     }
 
-    return matches
-      .map(s => s.trim())
-      .filter(s => s.length > 0)
+    return matches.map((s) => s.trim()).filter((s) => s.length > 0)
   }
 
   /**
-   * Group sentences into slides based on word count
-   * Priority: Sentence boundaries > Word count target
+   * Group sentences into slides: 2 sentences per slide, max 50 words
    * @param sentences - Array of sentences
-   * @param config - Chunking configuration
    * @returns Array of slide texts
    */
-  private groupSentencesIntoSlides(sentences: string[], config: ChunkConfig): string[] {
+  private groupSentencesIntoSlides(sentences: string[]): string[] {
     const slides: string[] = []
     let currentSlide: string[] = []
     let currentWordCount = 0
@@ -56,35 +51,42 @@ export class ChunkerService {
     for (const sentence of sentences) {
       const sentenceWords = this.countWords(sentence)
 
-      // If adding this sentence exceeds limit
-      if (currentWordCount + sentenceWords > config.maxWords) {
-        // If we have content, save current slide
+      // If single sentence exceeds max words, split it
+      if (sentenceWords > MAX_WORDS_PER_SLIDE) {
+        // Save current slide if not empty
         if (currentSlide.length > 0) {
           slides.push(currentSlide.join(' '))
           currentSlide = []
           currentWordCount = 0
         }
 
-        // If single sentence is too long, split it at word boundaries
-        if (sentenceWords > config.maxWords) {
-          const chunks = this.splitLongSentence(sentence, config.maxWords)
-          // Add all chunks except the last one as complete slides
-          for (let i = 0; i < chunks.length - 1; i++) {
-            slides.push(chunks[i])
-          }
-          // Start new slide with the last chunk
-          const lastChunk = chunks[chunks.length - 1]
-          currentSlide = [lastChunk]
-          currentWordCount = this.countWords(lastChunk)
-        } else {
-          // Add full sentence to new slide
-          currentSlide.push(sentence)
-          currentWordCount = sentenceWords
+        // Split long sentence and add chunks as individual slides
+        const chunks = this.splitLongSentence(sentence, MAX_WORDS_PER_SLIDE)
+        for (const chunk of chunks) {
+          slides.push(chunk)
         }
+        continue
+      }
+
+      // Check if adding this sentence would exceed max words
+      if (currentWordCount + sentenceWords > MAX_WORDS_PER_SLIDE) {
+        // Save current slide and start new one
+        if (currentSlide.length > 0) {
+          slides.push(currentSlide.join(' '))
+        }
+        currentSlide = [sentence]
+        currentWordCount = sentenceWords
       } else {
-        // Sentence fits, add it
+        // Add sentence to current slide
         currentSlide.push(sentence)
         currentWordCount += sentenceWords
+
+        // If we've reached target sentence count, save the slide
+        if (currentSlide.length >= TARGET_SENTENCES_PER_SLIDE) {
+          slides.push(currentSlide.join(' '))
+          currentSlide = []
+          currentWordCount = 0
+        }
       }
     }
 

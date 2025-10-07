@@ -1,6 +1,7 @@
 import { parserService } from '@/parser/ParserService'
 import { storageService } from '@/db/StorageService'
-import type { Book, Chapter } from '@/db/types'
+import { chunkerService } from '@/chunker/ChunkerService'
+import type { Book, Slide, Chapter } from '@/db/types'
 import type { ParseProgress } from '@/parser/types'
 
 export type ImportProgressStage = 'reading' | 'parsing' | 'storing' | 'complete'
@@ -51,14 +52,34 @@ export class ImportService {
 
       this.ensureNotAborted(signal)
 
-      // Convert parsed chapters to storage format
-      const chapters: Chapter[] = parseResult.chapters.map((parsedChapter) => ({
-        bookId,
-        chapterIndex: parsedChapter.index,
-        title: parsedChapter.title,
-        text: parsedChapter.text,
-        words: this.countWords(parsedChapter.text),
-      }))
+      // Chunk all chapters into slides and build chapter metadata
+      const slides: Slide[] = []
+      const chapters: Chapter[] = []
+      let globalSlideIndex = 0
+
+      for (const parsedChapter of parseResult.chapters) {
+        const chapterSlideTexts = chunkerService.chunkText(parsedChapter.text)
+        const firstSlideIndex = globalSlideIndex
+
+        for (const slideText of chapterSlideTexts) {
+          slides.push({
+            bookId,
+            slideIndex: globalSlideIndex++,
+            chapter: parsedChapter.index,
+            words: this.countWords(slideText),
+            text: slideText,
+          })
+        }
+
+        // Store chapter metadata
+        chapters.push({
+          bookId,
+          chapterIndex: parsedChapter.index,
+          title: parsedChapter.title || `Chapter ${parsedChapter.index + 1}`,
+          firstSlideIndex,
+          slideCount: chapterSlideTexts.length,
+        })
+      }
 
       const book: Book = {
         id: bookId,
@@ -71,16 +92,17 @@ export class ImportService {
 
       onProgress?.({
         stage: 'storing',
-        message: `Saving ${chapters.length} chapters...`,
-        current: chapters.length,
-        total: chapters.length,
+        message: `Saving ${slides.length} slides...`,
+        current: slides.length,
+        total: slides.length,
       })
 
       await storageService.saveBook(book)
       await storageService.saveChapters(chapters)
+      await storageService.saveSlides(slides)
 
-      // Initialize progress at start of first chapter
-      await storageService.setProgress(bookId, 0, 0)
+      // Initialize progress at first slide
+      await storageService.setProgress(bookId, 0)
 
       onProgress?.({ stage: 'complete', message: 'Import complete' })
 
