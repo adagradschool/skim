@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
-import type { Slide, Chapter } from '@/db/types'
-import { AlertTriangle, Loader2, Settings, ArrowLeft, List } from 'lucide-react'
+import type { Slide, Chapter, Bookmark as BookmarkType } from '@/db/types'
+import { AlertTriangle, Loader2, Settings, ArrowLeft, List, BookmarkPlus, BookmarkCheck, Trash2, BookmarkX } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 
 interface ReaderPageProps {
   bookId: string
   onExit: () => void
+  openBookmarksOnMount?: boolean
 }
 
-export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
+export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: ReaderPageProps) {
   // Core state
   const [slides, setSlides] = useState<Slide[]>([])
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0)
+  const [bookmarks, setBookmarks] = useState<BookmarkType[]>([])
 
   // UI state
   const [loading, setLoading] = useState(true)
@@ -26,6 +28,8 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const [isPaused, setIsPaused] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
   const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('literata')
+  const [showBookmarks, setShowBookmarks] = useState(false)
+  const [showAddBookmark, setShowAddBookmark] = useState(false)
 
   // Reading time estimation
   const readingEstimator = useRef(new ReadingTimeEstimator())
@@ -81,6 +85,12 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }, INACTIVITY_TIMEOUT)
   }, [releaseWakeLock, INACTIVITY_TIMEOUT])
 
+  // Load bookmarks
+  const loadBookmarks = useCallback(async () => {
+    const allBookmarks = await storageService.getAllBookmarks(bookId)
+    setBookmarks(allBookmarks)
+  }, [bookId])
+
   // Load initial state
   useEffect(() => {
     const loadReaderState = async () => {
@@ -120,6 +130,15 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         const startSlideIndex = progress?.slideIndex ?? 0
         setCurrentSlideIndex(startSlideIndex)
 
+        // Load bookmarks
+        await loadBookmarks()
+
+        // Open bookmarks panel if requested
+        if (openBookmarksOnMount) {
+          setShowBookmarks(true)
+          setShowControls(true)
+        }
+
         slideEntryTime.current = Date.now()
       } catch (err) {
         console.error('Failed to load reader state', err)
@@ -130,7 +149,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
 
     loadReaderState()
-  }, [bookId])
+  }, [bookId, loadBookmarks, openBookmarksOnMount])
 
   // Wake lock initialization and visibility handling
   useEffect(() => {
@@ -242,6 +261,8 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       !isPaused &&
       !showSettings &&
       !showIndex &&
+      !showAddBookmark &&
+      !showBookmarks &&
       currentSlideIndex < slides.length &&
       !loading &&
       readingEstimator.current.shouldEnableAutoplay()
@@ -252,7 +273,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
       stopAutoAdvance()
     }
     return () => stopAutoAdvance()
-  }, [isAutoSwipeEnabled, isPaused, showSettings, showIndex, currentSlideIndex, slides.length, loading, startAutoAdvance, stopAutoAdvance])
+  }, [isAutoSwipeEnabled, isPaused, showSettings, showIndex, showAddBookmark, showBookmarks, currentSlideIndex, slides.length, loading, startAutoAdvance, stopAutoAdvance])
 
   // Hide controls after 3 seconds
   useEffect(() => {
@@ -339,6 +360,10 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   // Get current chapter
   const currentChapter = slides[currentSlideIndex]?.chapter
 
+  // Check if current slide is bookmarked
+  const currentSlideBookmark = bookmarks.find(b => b.slideIndex === currentSlideIndex)
+  const isCurrentSlideBookmarked = !!currentSlideBookmark
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950">
@@ -422,6 +447,23 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
             </button>
           </div>
           <div className="absolute right-4 top-4 z-10 flex gap-2">
+            <button
+              type="button"
+              className={`flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 backdrop-blur-sm transition hover:bg-slate-800 ${
+                isCurrentSlideBookmarked ? 'text-indigo-400 hover:text-indigo-300' : 'text-slate-300 hover:text-slate-100'
+              }`}
+              aria-label={isCurrentSlideBookmarked ? "Bookmarked" : "Add Bookmark"}
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowAddBookmark(true)
+              }}
+            >
+              {isCurrentSlideBookmarked ? (
+                <BookmarkCheck className="h-5 w-5" />
+              ) : (
+                <BookmarkPlus className="h-5 w-5" />
+              )}
+            </button>
             <button
               type="button"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
@@ -656,6 +698,215 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
           </div>
         </div>
       ) : null}
+
+      {/* Add/Edit Bookmark Modal */}
+      {showAddBookmark ? (
+        <AddBookmarkModal
+          slideText={currentSlideText}
+          existingAnnotation={currentSlideBookmark?.annotation || ''}
+          isEditing={isCurrentSlideBookmarked}
+          onSave={async (annotation) => {
+            if (currentSlideBookmark) {
+              // Update existing bookmark
+              await storageService.deleteBookmark(currentSlideBookmark.id)
+            }
+            await storageService.createBookmark({
+              bookId,
+              slideIndex: currentSlideIndex,
+              annotation,
+              snippet: currentSlideText.substring(0, 200),
+            })
+            setShowAddBookmark(false)
+            await loadBookmarks()
+          }}
+          onCancel={() => setShowAddBookmark(false)}
+        />
+      ) : null}
+
+      {/* Bookmarks Panel */}
+      {showBookmarks ? (
+        <BookmarksPanel
+          bookmarks={bookmarks}
+          chapters={chapters}
+          onNavigate={async (slideIndex) => {
+            setCurrentSlideIndex(slideIndex)
+            await storageService.setProgress(bookId, slideIndex)
+            setShowBookmarks(false)
+            slideEntryTime.current = Date.now()
+          }}
+          onDelete={async (bookmarkId) => {
+            await storageService.deleteBookmark(bookmarkId)
+            await loadBookmarks()
+          }}
+          onClose={() => setShowBookmarks(false)}
+          onOpen={() => loadBookmarks()}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+interface BookmarksPanelProps {
+  bookmarks: BookmarkType[]
+  chapters: Chapter[]
+  onNavigate: (slideIndex: number) => void
+  onDelete: (bookmarkId: string) => void
+  onClose: () => void
+  onOpen: () => void
+}
+
+function BookmarksPanel({ bookmarks, chapters, onNavigate, onDelete, onClose, onOpen }: BookmarksPanelProps) {
+  useEffect(() => {
+    onOpen()
+  }, [onOpen])
+
+  const getChapterForSlide = (slideIndex: number): Chapter | undefined => {
+    return chapters.find(
+      (ch) => slideIndex >= ch.firstSlideIndex && slideIndex < ch.firstSlideIndex + ch.slideCount
+    )
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="p-6 pb-4 border-b border-slate-700">
+          <h2 className="text-lg font-semibold">Bookmarks</h2>
+        </div>
+        <div className="overflow-y-auto flex-1 px-4 py-2">
+          {bookmarks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+              <BookmarkX className="h-12 w-12 mb-3" />
+              <p className="text-sm">No bookmarks yet</p>
+              <p className="text-xs mt-1">Tap the bookmark icon to save slides</p>
+            </div>
+          ) : (
+            bookmarks.map((bookmark) => {
+              const chapter = getChapterForSlide(bookmark.slideIndex)
+              return (
+                <div
+                  key={bookmark.id}
+                  className="mb-3 rounded-lg border border-slate-700 bg-slate-800 p-4 transition hover:bg-slate-750"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      className="flex-1 text-left"
+                      onClick={() => onNavigate(bookmark.slideIndex)}
+                    >
+                      <div className="text-xs font-medium text-indigo-400 mb-2">
+                        {chapter?.title || 'Unknown Chapter'} · Slide {bookmark.slideIndex + 1}
+                      </div>
+                      <div className="text-sm text-slate-300 mb-2 line-clamp-2">
+                        {bookmark.snippet}
+                      </div>
+                      {bookmark.annotation && (
+                        <div className="text-sm text-slate-400 italic mt-2 border-l-2 border-slate-600 pl-2">
+                          {bookmark.annotation}
+                        </div>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-700 hover:text-red-400"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete(bookmark.id)
+                      }}
+                      aria-label="Delete bookmark"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+        <div className="p-4 border-t border-slate-700">
+          <button
+            type="button"
+            className="w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface AddBookmarkModalProps {
+  slideText: string
+  existingAnnotation: string
+  isEditing: boolean
+  onSave: (annotation: string) => void
+  onCancel: () => void
+}
+
+function AddBookmarkModal({ slideText, existingAnnotation, isEditing, onSave, onCancel }: AddBookmarkModalProps) {
+  const [annotation, setAnnotation] = useState(existingAnnotation)
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCancel()
+        }
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
+        <h2 className="text-lg font-semibold">{isEditing ? 'Edit Bookmark' : 'Add Bookmark'}</h2>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-slate-300">Slide content</label>
+          <div className="mt-2 rounded-lg bg-slate-800 p-3 text-sm text-slate-300 max-h-32 overflow-y-auto">
+            {slideText}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label htmlFor="annotation" className="block text-sm font-medium text-slate-300">
+            Your note (optional)
+          </label>
+          <textarea
+            id="annotation"
+            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Add your thoughts or notes about this slide..."
+            rows={3}
+            value={annotation}
+            onChange={(e) => setAnnotation(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <button
+            type="button"
+            className="flex-1 rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+            onClick={() => onSave(annotation)}
+          >
+            {isEditing ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

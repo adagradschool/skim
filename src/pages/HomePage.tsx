@@ -12,7 +12,7 @@ import {
 import { storageService } from '@/db/StorageService'
 import type { Book, Progress } from '@/db/types'
 import { importService, type ImportProgressUpdate } from '@/importer/ImportService'
-import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark } from 'lucide-react'
 import { ReaderPage } from '@/pages/ReaderPage'
 
 interface LibraryEntry {
@@ -47,6 +47,7 @@ export function HomePage() {
   const [isUploadOpen, setUploadOpen] = useState(false)
   const [deleteBookId, setDeleteBookId] = useState<string | null>(null)
   const [readingBookId, setReadingBookId] = useState<string | null>(null)
+  const [showBookmarksOnOpen, setShowBookmarksOnOpen] = useState(false)
 
   const coverUrlsRef = useRef<string[]>([])
 
@@ -119,9 +120,10 @@ export function HomePage() {
     }
   }, [refreshLibrary])
 
-  const handleOpenBook = useCallback(async (bookId: string) => {
+  const handleOpenBook = useCallback(async (bookId: string, openBookmarks = false) => {
     // Track last opened book
     await storageService.setKV('lastOpenedBookId', bookId)
+    setShowBookmarksOnOpen(openBookmarks)
     setReadingBookId(bookId)
   }, [])
 
@@ -132,7 +134,7 @@ export function HomePage() {
 
   // Show reader if a book is selected
   if (readingBookId) {
-    return <ReaderPage bookId={readingBookId} onExit={handleExitReader} />
+    return <ReaderPage bookId={readingBookId} onExit={handleExitReader} openBookmarksOnMount={showBookmarksOnOpen} />
   }
 
   return (
@@ -165,6 +167,7 @@ export function HomePage() {
                   entry={entry}
                   onDelete={() => setDeleteBookId(entry.id)}
                   onOpen={() => handleOpenBook(entry.id)}
+                  onViewBookmarks={() => handleOpenBook(entry.id, true)}
                 />
               </li>
             ))}
@@ -554,9 +557,10 @@ interface LibraryCardProps {
   entry: LibraryEntry
   onDelete: () => void
   onOpen: () => void
+  onViewBookmarks: () => void
 }
 
-function LibraryCard({ entry, onDelete, onOpen }: LibraryCardProps) {
+function LibraryCard({ entry, onDelete, onOpen, onViewBookmarks }: LibraryCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -582,7 +586,19 @@ function LibraryCard({ entry, onDelete, onOpen }: LibraryCardProps) {
               e.stopPropagation()
               setMenuOpen(false)
             }} />
-            <div className="absolute right-0 top-10 z-20 w-40 rounded-lg border border-slate-700 bg-slate-800 py-1 shadow-xl">
+            <div className="absolute right-0 top-10 z-20 w-48 rounded-lg border border-slate-700 bg-slate-800 py-1 shadow-xl">
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-slate-300 transition hover:bg-slate-700"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMenuOpen(false)
+                  onViewBookmarks()
+                }}
+              >
+                <Bookmark className="h-4 w-4" />
+                View Bookmarks
+              </button>
               <button
                 type="button"
                 className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-400 transition hover:bg-slate-700"

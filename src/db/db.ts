@@ -2,7 +2,7 @@ import { openDB } from 'idb'
 import type { DBSchema, IDBPDatabase } from 'idb'
 
 const DB_NAME = 'skim-db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 // Define the database schema
 export interface SkimDB extends DBSchema {
@@ -57,6 +57,18 @@ export interface SkimDB extends DBSchema {
       slideIndex: number
       updatedAt: number
     }
+  }
+  bookmarks: {
+    key: string // auto-generated ID
+    value: {
+      id: string
+      bookId: string
+      slideIndex: number
+      annotation: string
+      snippet: string
+      timestamp: number
+    }
+    indexes: { 'by-book': string; 'by-timestamp': [string, number] }
   }
   kv: {
     key: string
@@ -121,6 +133,15 @@ export async function getDB(): Promise<IDBPDatabase<SkimDB>> {
           await progressStore.clear()
 
           console.log('Database migrated to v2: Chapters-based storage. All old data cleared.')
+        }
+
+        // Version 3: Add bookmarks store
+        if (oldVersion < 3) {
+          const bookmarksStore = db.createObjectStore('bookmarks', { keyPath: 'id' })
+          bookmarksStore.createIndex('by-book', 'bookId')
+          bookmarksStore.createIndex('by-timestamp', ['bookId', 'timestamp'])
+
+          console.log('Database migrated to v3: Added bookmarks store.')
         }
       },
       blocked() {
