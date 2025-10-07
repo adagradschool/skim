@@ -44,6 +44,11 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const controlsTimeoutRef = useRef<number | null>(null)
   const isHolding = useRef<boolean>(false)
 
+  // Wake lock state
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+  const inactivityTimerRef = useRef<number | null>(null)
+  const INACTIVITY_TIMEOUT = 40 * 60 * 1000 // 40 minutes in milliseconds
+
   // Helper: Convert word offset to slide index
   const wordOffsetToSlideIndex = useCallback((wordOffset: number, slides: string[]): number => {
     let currentWordCount = 0
@@ -65,6 +70,42 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     }
     return wordOffset
   }, [])
+
+  // Wake lock functions
+  const requestWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator)) {
+      return
+    }
+
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request('screen')
+      wakeLockRef.current.addEventListener('release', () => {
+        wakeLockRef.current = null
+      })
+    } catch (err) {
+      // Wake lock request failed, silently continue
+      console.error('Wake lock request failed:', err)
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release()
+      wakeLockRef.current = null
+    }
+  }, [])
+
+  const resetInactivityTimer = useCallback(() => {
+    // Clear existing timer
+    if (inactivityTimerRef.current !== null) {
+      clearTimeout(inactivityTimerRef.current)
+    }
+
+    // Set new timer to release wake lock after 40 minutes
+    inactivityTimerRef.current = window.setTimeout(() => {
+      releaseWakeLock()
+    }, INACTIVITY_TIMEOUT)
+  }, [releaseWakeLock, INACTIVITY_TIMEOUT])
 
   // Load initial state
   useEffect(() => {
@@ -131,6 +172,40 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     loadReaderState()
   }, [bookId, wordOffsetToSlideIndex])
 
+  // Wake lock initialization and visibility handling
+  useEffect(() => {
+    // Request wake lock on mount
+    requestWakeLock()
+    resetInactivityTimer()
+
+    // Handle visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Reacquire wake lock when page becomes visible
+        requestWakeLock()
+        resetInactivityTimer()
+      } else {
+        // Release wake lock when page is hidden
+        releaseWakeLock()
+        if (inactivityTimerRef.current !== null) {
+          clearTimeout(inactivityTimerRef.current)
+          inactivityTimerRef.current = null
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Cleanup on unmount
+    return () => {
+      releaseWakeLock()
+      if (inactivityTimerRef.current !== null) {
+        clearTimeout(inactivityTimerRef.current)
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [requestWakeLock, releaseWakeLock, resetInactivityTimer])
+
   // Rechunk entire chapter when chapter or config changes
   useEffect(() => {
     if (chapters.length === 0 || currentChapterIndex >= chapters.length) {
@@ -166,6 +241,9 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
   const goToNext = useCallback(async () => {
     if (slides.length === 0 || chapters.length === 0 || currentChapterIndex >= chapters.length) return
 
+    // Reset inactivity timer on user interaction
+    resetInactivityTimer()
+
     // Record time spent on slide
     if (slideEntryTime.current > 0) {
       const timeSpent = (Date.now() - slideEntryTime.current) / 1000
@@ -187,11 +265,14 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         await storageService.setProgress(bookId, currentChapterIndex + 1, 0)
       }
     }
-  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, slideIndexToWordOffset])
+  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, slideIndexToWordOffset, resetInactivityTimer])
 
   // Navigate to previous slide
   const goToPrevious = useCallback(async () => {
     if (slides.length === 0 || chapters.length === 0 || currentChapterIndex >= chapters.length) return
+
+    // Reset inactivity timer on user interaction
+    resetInactivityTimer()
 
     slideEntryTime.current = Date.now()
 
@@ -217,7 +298,7 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
         await storageService.setProgress(bookId, prevChapterIndex, wordOffset)
       }
     }
-  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, chunkConfig, slideIndexToWordOffset])
+  }, [slides, chapters, currentSlideIndex, currentChapterIndex, bookId, chunkConfig, slideIndexToWordOffset, resetInactivityTimer])
 
   // Auto-advance functionality
   const stopAutoAdvance = useCallback(() => {
@@ -293,10 +374,13 @@ export function ReaderPage({ bookId, onExit }: ReaderPageProps) {
     touchStartTime.current = Date.now()
     isHolding.current = true
 
+    // Reset inactivity timer on user interaction
+    resetInactivityTimer()
+
     if (isAutoSwipeEnabled) {
       setIsPaused(true)
     }
-  }, [isAutoSwipeEnabled])
+  }, [isAutoSwipeEnabled, resetInactivityTimer])
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
