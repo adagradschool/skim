@@ -37,6 +37,7 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
 
   // Touch state
   const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
   const touchStartTime = useRef<number>(0)
   const autoAdvanceTimerRef = useRef<number | null>(null)
   const progressIntervalRef = useRef<number | null>(null)
@@ -297,6 +298,7 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
     const touch = e.touches[0]
     if (!touch) return
     touchStartX.current = touch.clientX
+    touchStartY.current = touch.clientY
     touchStartTime.current = Date.now()
     isHolding.current = true
 
@@ -312,7 +314,7 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
     (e: React.TouchEvent) => {
       isHolding.current = false
 
-      if (touchStartX.current === null) {
+      if (touchStartX.current === null || touchStartY.current === null) {
         return
       }
 
@@ -320,14 +322,24 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
       if (!touch) return
 
       const deltaX = touch.clientX - touchStartX.current
+      const deltaY = touch.clientY - touchStartY.current
       const touchDuration = Date.now() - touchStartTime.current
       const tapX = touch.clientX
       const screenWidth = window.innerWidth
 
       touchStartX.current = null
+      touchStartY.current = null
+
+      // Check for swipe-down (bookmark gesture)
+      // Requires: vertical swipe > 50px, horizontal movement < 30px, quick swipe
+      if (deltaY > 50 && Math.abs(deltaX) < 30 && touchDuration < 400) {
+        setIsPaused(false)
+        setShowAddBookmark(true)
+        return
+      }
 
       // Check for tap
-      if (Math.abs(deltaX) < 10 && touchDuration < 300) {
+      if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && touchDuration < 300) {
         const leftThird = screenWidth / 3
         const rightThird = (screenWidth * 2) / 3
 
@@ -447,23 +459,11 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
             </button>
           </div>
           <div className="absolute right-4 top-4 z-10 flex gap-2">
-            <button
-              type="button"
-              className={`flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 backdrop-blur-sm transition hover:bg-slate-800 ${
-                isCurrentSlideBookmarked ? 'text-indigo-400 hover:text-indigo-300' : 'text-slate-300 hover:text-slate-100'
-              }`}
-              aria-label={isCurrentSlideBookmarked ? "Bookmarked" : "Add Bookmark"}
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowAddBookmark(true)
-              }}
-            >
-              {isCurrentSlideBookmarked ? (
+            {isCurrentSlideBookmarked && (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm">
                 <BookmarkCheck className="h-5 w-5" />
-              ) : (
-                <BookmarkPlus className="h-5 w-5" />
-              )}
-            </button>
+              </div>
+            )}
             <button
               type="button"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
@@ -719,7 +719,9 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
             setShowAddBookmark(false)
             await loadBookmarks()
           }}
-          onCancel={() => setShowAddBookmark(false)}
+          onCancel={() => {
+            setShowAddBookmark(false)
+          }}
         />
       ) : null}
 
