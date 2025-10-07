@@ -3,7 +3,11 @@ const TARGET_SENTENCES_PER_SLIDE = 2
 
 export class ChunkerService {
   /**
-   * Chunk text into slides: 2 sentences or 50 words max per slide
+   * NEW ALGORITHM: 2 sentences capped at 60 words, spillover to next slide
+   * - Add next 2 sentences to buffer
+   * - If total > 60 words: take first 60 words, carry remainder to next slide
+   * - Fragment counts as 1 "sentence" for the 2-sentence target
+   *
    * @param text - Full chapter text
    * @returns Array of slide texts
    */
@@ -14,7 +18,7 @@ export class ChunkerService {
     }
 
     const sentences = this.splitIntoSentences(text)
-    return this.groupSentencesIntoSlides(sentences)
+    return this.chunkWithCarryover(sentences)
   }
 
   /**
@@ -39,90 +43,49 @@ export class ChunkerService {
   }
 
   /**
-   * Group sentences into slides: 2 sentences per slide, max 50 words
+   * Chunk sentences with carry-over logic
    * @param sentences - Array of sentences
    * @returns Array of slide texts
    */
-  private groupSentencesIntoSlides(sentences: string[]): string[] {
+  private chunkWithCarryover(sentences: string[]): string[] {
     const slides: string[] = []
-    let currentSlide: string[] = []
-    let currentWordCount = 0
+    let carryover: string[] = [] // Words carried over from previous slide
+    let sentenceIndex = 0
 
-    for (const sentence of sentences) {
-      const sentenceWords = this.countWords(sentence)
+    while (sentenceIndex < sentences.length || carryover.length > 0) {
+      // Start building current slide buffer
+      let buffer: string[] = [...carryover]
+      let sentencesAdded = carryover.length > 0 ? 1 : 0 // Carryover counts as 1 sentence
 
-      // If single sentence exceeds max words, split it
-      if (sentenceWords > MAX_WORDS_PER_SLIDE) {
-        // Save current slide if not empty
-        if (currentSlide.length > 0) {
-          slides.push(currentSlide.join(' '))
-          currentSlide = []
-          currentWordCount = 0
-        }
-
-        // Split long sentence and add chunks as individual slides
-        const chunks = this.splitLongSentence(sentence, MAX_WORDS_PER_SLIDE)
-        for (const chunk of chunks) {
-          slides.push(chunk)
-        }
-        continue
+      // Add sentences until we reach target (2 sentences)
+      while (sentencesAdded < TARGET_SENTENCES_PER_SLIDE && sentenceIndex < sentences.length) {
+        const sentenceWords = this.tokenizeWords(sentences[sentenceIndex])
+        buffer.push(...sentenceWords)
+        sentencesAdded++
+        sentenceIndex++
       }
 
-      // Check if adding this sentence would exceed max words
-      if (currentWordCount + sentenceWords > MAX_WORDS_PER_SLIDE) {
-        // Save current slide and start new one
-        if (currentSlide.length > 0) {
-          slides.push(currentSlide.join(' '))
-        }
-        currentSlide = [sentence]
-        currentWordCount = sentenceWords
+      // No more content
+      if (buffer.length === 0) {
+        break
+      }
+
+      // Check if buffer exceeds max words
+      if (buffer.length > MAX_WORDS_PER_SLIDE) {
+        // Take first 60 words for this slide
+        const slideWords = buffer.slice(0, MAX_WORDS_PER_SLIDE)
+        slides.push(slideWords.join(' '))
+
+        // Carry remainder to next slide
+        carryover = buffer.slice(MAX_WORDS_PER_SLIDE)
       } else {
-        // Add sentence to current slide
-        currentSlide.push(sentence)
-        currentWordCount += sentenceWords
-
-        // If we've reached target sentence count, save the slide
-        if (currentSlide.length >= TARGET_SENTENCES_PER_SLIDE) {
-          slides.push(currentSlide.join(' '))
-          currentSlide = []
-          currentWordCount = 0
-        }
+        // Buffer fits, emit as slide
+        slides.push(buffer.join(' '))
+        carryover = []
       }
-    }
-
-    // Flush remaining content
-    if (currentSlide.length > 0) {
-      slides.push(currentSlide.join(' '))
     }
 
     return slides
-  }
-
-  /**
-   * Split a long sentence into chunks at word boundaries
-   * @param sentence - Sentence to split
-   * @param maxWords - Maximum words per chunk
-   * @returns Array of text chunks
-   */
-  private splitLongSentence(sentence: string, maxWords: number): string[] {
-    const words = this.tokenizeWords(sentence)
-    const chunks: string[] = []
-
-    for (let i = 0; i < words.length; i += maxWords) {
-      const chunk = words.slice(i, i + maxWords)
-      chunks.push(chunk.join(' '))
-    }
-
-    return chunks
-  }
-
-  /**
-   * Count words in text
-   * @param text - Text to count
-   * @returns Number of words
-   */
-  private countWords(text: string): number {
-    return this.tokenizeWords(text).length
   }
 
   /**
