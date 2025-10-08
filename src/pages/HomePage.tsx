@@ -25,7 +25,8 @@ interface LibraryEntry {
   lastUpdated: number
 }
 
-const MAX_EPUB_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB limit for smoother mobile imports
+const MAX_EPUB_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB limit for EPUBs
+const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB limit for PDFs
 
 const IMPORT_STAGES = ['reading', 'parsing', 'chunking', 'storing', 'complete'] as const
 const STAGE_LABELS: Record<(typeof IMPORT_STAGES)[number], string> = {
@@ -178,7 +179,7 @@ export function HomePage() {
       <button
         type="button"
         className="fixed bottom-6 right-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg transition hover:bg-indigo-400"
-        aria-label="Upload EPUB"
+        aria-label="Upload Document"
         onClick={() => setUploadOpen(true)}
       >
         <Plus className="h-6 w-6" />
@@ -190,7 +191,6 @@ export function HomePage() {
           onImported={async (bookId) => {
             await refreshLibrary()
             handleCloseUpload()
-            return bookId
           }}
         />
       ) : null}
@@ -276,30 +276,35 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
     async (file: File) => {
       if (!file) return
 
-      const extensionValid = file.name.toLowerCase().endsWith('.epub')
-      const typeValid = file.type === 'application/epub+zip' || file.type === ''
+      const fileName = file.name.toLowerCase()
+      const isEpub = fileName.endsWith('.epub') || file.type === 'application/epub+zip'
+      const isPdf = fileName.endsWith('.pdf') || file.type === 'application/pdf'
 
-      if (!extensionValid && !typeValid) {
-        setError('Please choose an .epub file')
+      if (!isEpub && !isPdf) {
+        setError('Please choose an EPUB or PDF file')
         return
       }
 
-      if (file.size > MAX_EPUB_SIZE_BYTES) {
-        setError('That file is too large (max 5 MB)')
+      // Check file size based on format
+      const maxSize = isPdf ? MAX_PDF_SIZE_BYTES : MAX_EPUB_SIZE_BYTES
+      const maxSizeMB = Math.round(maxSize / (1024 * 1024))
+
+      if (file.size > maxSize) {
+        setError(`That file is too large (max ${maxSizeMB} MB for ${isPdf ? 'PDFs' : 'EPUBs'})`)
         return
       }
 
       setError(null)
       setFileName(file.name)
       setProgressStage('reading')
-      setProgressMessage('Reading EPUB file...')
+      setProgressMessage('Reading file...')
       setUploading(true)
 
       const abortController = new AbortController()
       setController(abortController)
 
       try {
-        const bookId = await importService.importEpub(file, {
+        const bookId = await importService.import(file, {
           signal: abortController.signal,
           onProgress: (update: ImportProgressUpdate) => {
             setProgressStage(update.stage)
@@ -409,8 +414,8 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
       <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Import EPUB</h2>
-            <p className="mt-1 text-sm text-slate-400">Add a book from your device.</p>
+            <h2 className="text-lg font-semibold">Import Document</h2>
+            <p className="mt-1 text-sm text-slate-400">Add an EPUB or PDF from your device.</p>
           </div>
           <button
             type="button"
@@ -438,7 +443,7 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-300">
             <Upload className="h-6 w-6" />
           </div>
-          <p className="mt-4 text-base font-medium">Drag & drop your EPUB</p>
+          <p className="mt-4 text-base font-medium">Drag & drop your document</p>
           <p className="mt-1 text-sm text-slate-400">or</p>
           <button
             type="button"
@@ -451,11 +456,11 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".epub,application/epub+zip"
+            accept=".epub,.pdf,application/epub+zip,application/pdf"
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <p className="mt-4 text-xs text-slate-400">EPUB only · Up to 5 MB</p>
+          <p className="mt-4 text-xs text-slate-400">EPUB or PDF · Up to 5 MB (EPUB) or 20 MB (PDF)</p>
           {fileName ? <p className="mt-3 text-sm text-slate-300">Selected: {fileName}</p> : null}
         </div>
 
@@ -658,7 +663,7 @@ function EmptyLibrary({ onUpload }: { onUpload: () => void }) {
       </div>
       <h2 className="mt-4 text-lg font-semibold text-white">Upload your first book</h2>
       <p className="mt-2 text-sm text-slate-400">
-        Import an EPUB to start reading quick-slide chapters.
+        Import an EPUB or PDF to start reading quick-slide chapters.
       </p>
       <button
         type="button"
