@@ -25,8 +25,7 @@ interface LibraryEntry {
   lastUpdated: number
 }
 
-const MAX_EPUB_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB limit for EPUBs
-const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB limit for PDFs
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024 // 20 MB limit
 
 const IMPORT_STAGES = ['reading', 'parsing', 'chunking', 'storing', 'complete'] as const
 const STAGE_LABELS: Record<(typeof IMPORT_STAGES)[number], string> = {
@@ -285,12 +284,9 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
         return
       }
 
-      // Check file size based on format
-      const maxSize = isPdf ? MAX_PDF_SIZE_BYTES : MAX_EPUB_SIZE_BYTES
-      const maxSizeMB = Math.round(maxSize / (1024 * 1024))
-
-      if (file.size > maxSize) {
-        setError(`That file is too large (max ${maxSizeMB} MB for ${isPdf ? 'PDFs' : 'EPUBs'})`)
+      // Check file size
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setError('File is too large (max 20 MB)')
         return
       }
 
@@ -460,7 +456,7 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <p className="mt-4 text-xs text-slate-400">EPUB or PDF · Up to 5 MB (EPUB) or 20 MB (PDF)</p>
+          <p className="mt-4 text-xs text-slate-400">EPUB or PDF · Up to 20 MB</p>
           {fileName ? <p className="mt-3 text-sm text-slate-300">Selected: {fileName}</p> : null}
         </div>
 
