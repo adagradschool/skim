@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { storageService } from '@/db/StorageService'
 import type { Slide, Chapter, Bookmark as BookmarkType } from '@/db/types'
-import { AlertTriangle, Loader2, Settings, ArrowLeft, List, BookmarkPlus, BookmarkCheck, Trash2, BookmarkX } from 'lucide-react'
+import {
+  AlertTriangle,
+  Loader2,
+  Settings,
+  ArrowLeft,
+  List,
+  BookmarkCheck,
+  Trash2,
+  BookmarkX,
+} from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 
 interface ReaderPageProps {
@@ -10,7 +19,11 @@ interface ReaderPageProps {
   openBookmarksOnMount?: boolean
 }
 
-export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: ReaderPageProps) {
+export function ReaderPage({
+  bookId,
+  onExit,
+  openBookmarksOnMount = false,
+}: ReaderPageProps) {
   // Core state
   const [slides, setSlides] = useState<Slide[]>([])
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -27,7 +40,9 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
   const [showControls, setShowControls] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [progressPercent, setProgressPercent] = useState(0)
-  const [selectedFont, setSelectedFont] = useState<'inter' | 'literata' | 'merriweather'>('literata')
+  const [selectedFont, setSelectedFont] = useState<
+    'inter' | 'literata' | 'merriweather'
+  >('literata')
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAddBookmark, setShowAddBookmark] = useState(false)
 
@@ -43,12 +58,12 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
   const progressIntervalRef = useRef<number | null>(null)
   const controlsTimeoutRef = useRef<number | null>(null)
   const isHolding = useRef<boolean>(false)
+  const lastTapTime = useRef<number>(0)
 
   // Wake lock state
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const inactivityTimerRef = useRef<number | null>(null)
   const INACTIVITY_TIMEOUT = 40 * 60 * 1000 // 40 minutes in milliseconds
-
 
   // Wake lock functions
   const requestWakeLock = useCallback(async () => {
@@ -118,11 +133,15 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
         setChapters(allChapters)
 
         // Load preferences
-        const autoAdvanceSetting = await storageService.getKV('autoAdvanceEnabled')
+        const autoAdvanceSetting =
+          await storageService.getKV('autoAdvanceEnabled')
         setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
 
         const savedFont = await storageService.getKV('selectedFont')
-        if (savedFont && ['inter', 'literata', 'merriweather'].includes(savedFont)) {
+        if (
+          savedFont &&
+          ['inter', 'literata', 'merriweather'].includes(savedFont)
+        ) {
           setSelectedFont(savedFont as 'inter' | 'literata' | 'merriweather')
         }
 
@@ -274,7 +293,19 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
       stopAutoAdvance()
     }
     return () => stopAutoAdvance()
-  }, [isAutoSwipeEnabled, isPaused, showSettings, showIndex, showAddBookmark, showBookmarks, currentSlideIndex, slides.length, loading, startAutoAdvance, stopAutoAdvance])
+  }, [
+    isAutoSwipeEnabled,
+    isPaused,
+    showSettings,
+    showIndex,
+    showAddBookmark,
+    showBookmarks,
+    currentSlideIndex,
+    slides.length,
+    loading,
+    startAutoAdvance,
+    stopAutoAdvance,
+  ])
 
   // Hide controls after 3 seconds
   useEffect(() => {
@@ -294,21 +325,24 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
   }, [showControls])
 
   // Touch handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0]
-    if (!touch) return
-    touchStartX.current = touch.clientX
-    touchStartY.current = touch.clientY
-    touchStartTime.current = Date.now()
-    isHolding.current = true
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      const touch = e.touches[0]
+      if (!touch) return
+      touchStartX.current = touch.clientX
+      touchStartY.current = touch.clientY
+      touchStartTime.current = Date.now()
+      isHolding.current = true
 
-    // Reset inactivity timer on user interaction
-    resetInactivityTimer()
+      // Reset inactivity timer on user interaction
+      resetInactivityTimer()
 
-    if (isAutoSwipeEnabled) {
-      setIsPaused(true)
-    }
-  }, [isAutoSwipeEnabled, resetInactivityTimer])
+      if (isAutoSwipeEnabled) {
+        setIsPaused(true)
+      }
+    },
+    [isAutoSwipeEnabled, resetInactivityTimer]
+  )
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
@@ -330,16 +364,24 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
       touchStartX.current = null
       touchStartY.current = null
 
-      // Check for swipe-down (bookmark gesture)
-      // Requires: vertical swipe > 50px, horizontal movement < 30px, quick swipe
-      if (deltaY > 50 && Math.abs(deltaX) < 30 && touchDuration < 400) {
-        setIsPaused(false)
-        setShowAddBookmark(true)
-        return
-      }
-
       // Check for tap
-      if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && touchDuration < 300) {
+      if (
+        Math.abs(deltaX) < 10 &&
+        Math.abs(deltaY) < 10 &&
+        touchDuration < 300
+      ) {
+        const currentTime = Date.now()
+        const timeSinceLastTap = currentTime - lastTapTime.current
+
+        // Check for double-tap (bookmark gesture)
+        if (timeSinceLastTap < 500) {
+          setShowAddBookmark(true)
+          lastTapTime.current = 0 // Reset to prevent triple-tap from triggering
+          return
+        }
+
+        lastTapTime.current = currentTime
+
         const leftThird = screenWidth / 3
         const rightThird = (screenWidth * 2) / 3
 
@@ -360,20 +402,27 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
   )
 
   // Calculate current progress (match HomePage calculation)
-  const currentProgress = slides.length > 0
-    ? Math.min(100, Math.round((currentSlideIndex / Math.max(slides.length - 1, 1)) * 100))
-    : 0
+  const currentProgress =
+    slides.length > 0
+      ? Math.min(
+          100,
+          Math.round((currentSlideIndex / Math.max(slides.length - 1, 1)) * 100)
+        )
+      : 0
 
   // Get current slide text
-  const currentSlideText = slides.length > 0 && currentSlideIndex < slides.length
-    ? slides[currentSlideIndex].text
-    : ''
+  const currentSlideText =
+    slides.length > 0 && currentSlideIndex < slides.length
+      ? slides[currentSlideIndex].text
+      : ''
 
   // Get current chapter
   const currentChapter = slides[currentSlideIndex]?.chapter
 
   // Check if current slide is bookmarked
-  const currentSlideBookmark = bookmarks.find(b => b.slideIndex === currentSlideIndex)
+  const currentSlideBookmark = bookmarks.find(
+    (b) => b.slideIndex === currentSlideIndex
+  )
   const isCurrentSlideBookmarked = !!currentSlideBookmark
 
   if (loading) {
@@ -390,7 +439,9 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 text-red-400">
           <AlertTriangle className="h-8 w-8" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-white">Failed to Load Book</h2>
+        <h2 className="mt-4 text-lg font-semibold text-white">
+          Failed to Load Book
+        </h2>
         <p className="mt-2 text-center text-sm text-slate-400">{error}</p>
         <button
           type="button"
@@ -501,18 +552,17 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
         </footer>
       )}
 
-
       {/* Chapter Index panel */}
       {showIndex ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowIndex(false)
             }
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300">
             <div className="p-6 pb-4 border-b border-slate-700">
               <h2 className="text-lg font-semibold">Chapters</h2>
             </div>
@@ -525,7 +575,10 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
                     type="button"
                     onClick={async () => {
                       setCurrentSlideIndex(chapter.firstSlideIndex)
-                      await storageService.setProgress(bookId, chapter.firstSlideIndex)
+                      await storageService.setProgress(
+                        bookId,
+                        chapter.firstSlideIndex
+                      )
                       setShowIndex(false)
                       slideEntryTime.current = Date.now()
                     }}
@@ -541,7 +594,8 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
                           {chapter.title}
                         </div>
                         <div className="text-xs text-slate-400 mt-1">
-                          {chapter.slideCount} {chapter.slideCount === 1 ? 'slide' : 'slides'}
+                          {chapter.slideCount}{' '}
+                          {chapter.slideCount === 1 ? 'slide' : 'slides'}
                         </div>
                       </div>
                       {isActive && (
@@ -570,19 +624,21 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
       {/* Settings panel */}
       {showSettings ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowSettings(false)
             }
           }}
         >
-          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
             <h2 className="text-lg font-semibold">Reader Settings</h2>
 
             {/* Auto-swipe toggle */}
             <div className="mt-6 flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-300">Auto-swipe</label>
+              <label className="text-sm font-medium text-slate-300">
+                Auto-swipe
+              </label>
               <button
                 type="button"
                 role="switch"
@@ -619,14 +675,16 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
                       </span>
                     </div>
                     <div className="mt-1 text-xs text-slate-400">
-                      Based on {readingEstimator.current.getObservationCount()} slides read
+                      Based on {readingEstimator.current.getObservationCount()}{' '}
+                      slides read
                     </div>
                   </div>
                 ) : (
                   <div className="text-sm text-slate-400">
                     Learning your reading speed...
                     <div className="mt-1 text-xs">
-                      {readingEstimator.current.getObservationCount()} of 5 slides
+                      {readingEstimator.current.getObservationCount()} of 5
+                      slides
                     </div>
                   </div>
                 )}
@@ -635,7 +693,9 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
 
             {/* Font picker */}
             <div className="mt-6">
-              <label className="block text-sm font-medium text-slate-300">Font</label>
+              <label className="block text-sm font-medium text-slate-300">
+                Font
+              </label>
               <div className="mt-3 flex gap-3">
                 <button
                   type="button"
@@ -649,7 +709,10 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
                       : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
                   }`}
                 >
-                  <span className="text-2xl font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  <span
+                    className="text-2xl font-medium"
+                    style={{ fontFamily: 'Inter, sans-serif' }}
+                  >
                     Aa
                   </span>
                 </button>
@@ -665,7 +728,10 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
                       : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
                   }`}
                 >
-                  <span className="text-2xl font-medium" style={{ fontFamily: 'Literata, serif' }}>
+                  <span
+                    className="text-2xl font-medium"
+                    style={{ fontFamily: 'Literata, serif' }}
+                  >
                     Aa
                   </span>
                 </button>
@@ -681,7 +747,10 @@ export function ReaderPage({ bookId, onExit, openBookmarksOnMount = false }: Rea
                       : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
                   }`}
                 >
-                  <span className="text-2xl font-medium" style={{ fontFamily: 'Merriweather, serif' }}>
+                  <span
+                    className="text-2xl font-medium"
+                    style={{ fontFamily: 'Merriweather, serif' }}
+                  >
                     Aa
                   </span>
                 </button>
@@ -757,27 +826,36 @@ interface BookmarksPanelProps {
   onOpen: () => void
 }
 
-function BookmarksPanel({ bookmarks, chapters, onNavigate, onDelete, onClose, onOpen }: BookmarksPanelProps) {
+function BookmarksPanel({
+  bookmarks,
+  chapters,
+  onNavigate,
+  onDelete,
+  onClose,
+  onOpen,
+}: BookmarksPanelProps) {
   useEffect(() => {
     onOpen()
   }, [onOpen])
 
   const getChapterForSlide = (slideIndex: number): Chapter | undefined => {
     return chapters.find(
-      (ch) => slideIndex >= ch.firstSlideIndex && slideIndex < ch.firstSlideIndex + ch.slideCount
+      (ch) =>
+        slideIndex >= ch.firstSlideIndex &&
+        slideIndex < ch.firstSlideIndex + ch.slideCount
     )
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose()
         }
       }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh]">
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300">
         <div className="p-6 pb-4 border-b border-slate-700">
           <h2 className="text-lg font-semibold">Bookmarks</h2>
         </div>
@@ -786,7 +864,9 @@ function BookmarksPanel({ bookmarks, chapters, onNavigate, onDelete, onClose, on
             <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
               <BookmarkX className="h-12 w-12 mb-3" />
               <p className="text-sm">No bookmarks yet</p>
-              <p className="text-xs mt-1">Tap the bookmark icon to save slides</p>
+              <p className="text-xs mt-1">
+                Tap the bookmark icon to save slides
+              </p>
             </div>
           ) : (
             bookmarks.map((bookmark) => {
@@ -803,7 +883,8 @@ function BookmarksPanel({ bookmarks, chapters, onNavigate, onDelete, onClose, on
                       onClick={() => onNavigate(bookmark.slideIndex)}
                     >
                       <div className="text-xs font-medium text-indigo-400 mb-2">
-                        {chapter?.title || 'Unknown Chapter'} · Slide {bookmark.slideIndex + 1}
+                        {chapter?.title || 'Unknown Chapter'} · Slide{' '}
+                        {bookmark.slideIndex + 1}
                       </div>
                       <div className="text-sm text-slate-300 mb-2 line-clamp-2">
                         {bookmark.snippet}
@@ -853,12 +934,18 @@ interface AddBookmarkModalProps {
   onCancel: () => void
 }
 
-function AddBookmarkModal({ slideText, existingAnnotation, isEditing, onSave, onCancel }: AddBookmarkModalProps) {
+function AddBookmarkModal({
+  slideText,
+  existingAnnotation,
+  isEditing,
+  onSave,
+  onCancel,
+}: AddBookmarkModalProps) {
   const [annotation, setAnnotation] = useState(existingAnnotation)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel()
@@ -867,18 +954,25 @@ function AddBookmarkModal({ slideText, existingAnnotation, isEditing, onSave, on
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
-        <h2 className="text-lg font-semibold">{isEditing ? 'Edit Bookmark' : 'Add Bookmark'}</h2>
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
+        <h2 className="text-lg font-semibold">
+          {isEditing ? 'Edit Bookmark' : 'Add Bookmark'}
+        </h2>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-slate-300">Slide content</label>
+          <label className="block text-sm font-medium text-slate-300">
+            Slide content
+          </label>
           <div className="mt-2 rounded-lg bg-slate-800 p-3 text-sm text-slate-300 max-h-32 overflow-y-auto">
             {slideText}
           </div>
         </div>
 
         <div className="mt-4">
-          <label htmlFor="annotation" className="block text-sm font-medium text-slate-300">
+          <label
+            htmlFor="annotation"
+            className="block text-sm font-medium text-slate-300"
+          >
             Your note (optional)
           </label>
           <textarea
