@@ -374,7 +374,7 @@ export function ReaderPage({
         const timeSinceLastTap = currentTime - lastTapTime.current
 
         // Check for double-tap (bookmark gesture)
-        if (timeSinceLastTap < 500) {
+        if (timeSinceLastTap < 200) {
           setShowAddBookmark(true)
           lastTapTime.current = 0 // Reset to prevent triple-tap from triggering
           return
