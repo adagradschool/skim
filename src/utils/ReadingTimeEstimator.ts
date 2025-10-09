@@ -12,7 +12,6 @@ export class ReadingTimeEstimator {
   private alpha: number = 0.3 // Learning rate: higher = more weight to recent readings
 
   private static readonly MIN_OBSERVATIONS = 5
-  private static readonly MIN_TIME_SECONDS = 5
   private static readonly BUFFER_SECONDS = 2
 
   /**
@@ -20,15 +19,12 @@ export class ReadingTimeEstimator {
    * @param timeSeconds The actual time spent on a slide (in seconds)
    */
   addObservation(timeSeconds: number): void {
-    // Clamp input to minimum time
-    const clampedTime = Math.max(timeSeconds, ReadingTimeEstimator.MIN_TIME_SECONDS)
-
     if (this.n === 0) {
       // First observation: initialize EMA
-      this.ema = clampedTime
+      this.ema = timeSeconds
     } else {
       // Update EMA: ema = alpha * new_value + (1 - alpha) * old_ema
-      this.ema = this.alpha * clampedTime + (1 - this.alpha) * this.ema
+      this.ema = this.alpha * timeSeconds + (1 - this.alpha) * this.ema
     }
 
     this.n++
@@ -36,20 +32,17 @@ export class ReadingTimeEstimator {
 
   /**
    * Predict the reading time for the next slide
-   * Returns the predicted time with buffer, clamped to minimum
+   * Returns the predicted time with buffer
    * @returns Predicted time in seconds
    */
   predict(): number {
     if (this.n === 0) {
-      // No data yet, return default
-      return ReadingTimeEstimator.MIN_TIME_SECONDS + ReadingTimeEstimator.BUFFER_SECONDS
+      // No data yet, return default buffer
+      return ReadingTimeEstimator.BUFFER_SECONDS
     }
 
-    // Add buffer and clamp to minimum
-    return Math.max(
-      ReadingTimeEstimator.MIN_TIME_SECONDS,
-      this.ema + ReadingTimeEstimator.BUFFER_SECONDS
-    )
+    // Add buffer
+    return this.ema + ReadingTimeEstimator.BUFFER_SECONDS
   }
 
   /**
