@@ -12,6 +12,7 @@ import {
   BookmarkX,
 } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
+import { useTheme } from '@/hooks/useTheme'
 
 interface ReaderPageProps {
   bookId: string
@@ -45,6 +46,7 @@ export function ReaderPage({
   >('literata')
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAddBookmark, setShowAddBookmark] = useState(false)
+  const { theme, toggleTheme } = useTheme()
 
   // Reading time estimation
   const readingEstimator = useRef(new ReadingTimeEstimator())
@@ -171,6 +173,11 @@ export function ReaderPage({
     loadReaderState()
   }, [bookId, loadBookmarks, openBookmarksOnMount])
 
+  useEffect(() => {
+    readingEstimator.current.reset()
+    slideEntryTime.current = Date.now()
+  }, [bookId])
+
   // Wake lock initialization and visibility handling
   useEffect(() => {
     // Request wake lock on mount
@@ -215,7 +222,8 @@ export function ReaderPage({
     // Record time spent on slide
     if (slideEntryTime.current > 0) {
       const timeSpent = (Date.now() - slideEntryTime.current) / 1000
-      readingEstimator.current.addObservation(timeSpent)
+      const currentWords = slides[currentSlideIndex]?.words ?? 0
+      readingEstimator.current.addObservation(timeSpent, currentWords)
     }
     slideEntryTime.current = Date.now()
 
@@ -261,7 +269,8 @@ export function ReaderPage({
     stopAutoAdvance()
     setProgressPercent(0)
 
-    const duration = readingEstimator.current.predict() * 1000
+    const currentWords = slides[currentSlideIndex]?.words ?? 0
+    const duration = readingEstimator.current.predict(currentWords) * 1000
     const startTime = Date.now()
 
     progressIntervalRef.current = window.setInterval(() => {
@@ -273,7 +282,7 @@ export function ReaderPage({
     autoAdvanceTimerRef.current = window.setTimeout(() => {
       goToNext()
     }, duration)
-  }, [goToNext, stopAutoAdvance])
+  }, [currentSlideIndex, goToNext, slides, stopAutoAdvance])
 
   useEffect(() => {
     const shouldAutoAdvance =
@@ -427,25 +436,25 @@ export function ReaderPage({
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500 dark:text-gray-400" />
       </div>
     )
   }
 
   if (error || slides.length === 0) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-slate-950 px-6">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 text-red-400">
+      <div className="flex h-screen flex-col items-center justify-center bg-gray-50 px-6 text-gray-800 dark:bg-gray-900 dark:text-gray-100">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-error-50 text-error-600 dark:bg-error-900/40 dark:text-error-200">
           <AlertTriangle className="h-8 w-8" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-white">
+        <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
           Failed to Load Book
         </h2>
-        <p className="mt-2 text-center text-sm text-slate-400">{error}</p>
+        <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">{error}</p>
         <button
           type="button"
-          className="mt-6 rounded-full bg-indigo-500 px-6 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+          className="mt-6 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
           onClick={onExit}
         >
           Back to Library
@@ -456,15 +465,17 @@ export function ReaderPage({
 
   return (
     <div
-      className="relative flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100"
+      className="relative flex h-screen flex-col overflow-hidden bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       style={{ touchAction: 'none' }}
     >
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-grid-light dark:bg-grid-dark" />
+      <div className="pointer-events-none absolute inset-0 -z-20 page-glow dark:page-glow-dark" />
       {/* Progress bar */}
-      <div className="absolute left-0 right-0 top-0 z-20 h-1 bg-slate-900">
+      <div className="absolute left-0 right-0 top-0 z-20 h-1 bg-gray-200 dark:bg-gray-800">
         <div
-          className="h-full bg-white transition-all duration-100 ease-linear"
+          className="h-full bg-primary-500 transition-all duration-100 ease-linear dark:bg-primary-400"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
@@ -473,7 +484,7 @@ export function ReaderPage({
       <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-20">
         <div className="w-full max-w-2xl flex-1 flex items-center">
           <p
-            className="text-xl leading-relaxed text-slate-100 sm:text-2xl sm:leading-relaxed"
+            className="text-xl leading-relaxed text-gray-800 sm:text-2xl sm:leading-relaxed dark:text-gray-100"
             style={{
               fontFamily:
                 selectedFont === 'inter'
@@ -488,7 +499,7 @@ export function ReaderPage({
         </div>
         {bookTitle && (
           <div className="w-full max-w-2xl pt-4">
-            <h2 className="text-sm text-slate-400">{bookTitle}</h2>
+            <h2 className="text-sm text-gray-500 dark:text-gray-400">{bookTitle}</h2>
           </div>
         )}
       </main>
@@ -499,7 +510,7 @@ export function ReaderPage({
           <div className="absolute left-4 top-4 z-10">
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
               aria-label="Back to Library"
               onClick={(e) => {
                 e.stopPropagation()
@@ -511,13 +522,13 @@ export function ReaderPage({
           </div>
           <div className="absolute right-4 top-4 z-10 flex gap-2">
             {isCurrentSlideBookmarked && (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-700 shadow-sm dark:bg-primary-900/50 dark:text-primary-200">
                 <BookmarkCheck className="h-5 w-5" />
               </div>
             )}
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
               aria-label="Chapter Index"
               onClick={(e) => {
                 e.stopPropagation()
@@ -528,7 +539,7 @@ export function ReaderPage({
             </button>
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 backdrop-blur-sm transition hover:bg-slate-800 hover:text-slate-100"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
               aria-label="Settings"
               onClick={(e) => {
                 e.stopPropagation()
@@ -545,7 +556,7 @@ export function ReaderPage({
       {showControls && (
         <footer className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-6">
           <div className="mx-auto max-w-2xl">
-            <div className="flex items-center justify-center text-xs text-slate-400">
+            <div className="flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
               <span>{Math.round(currentProgress)}% complete</span>
             </div>
           </div>
@@ -555,15 +566,15 @@ export function ReaderPage({
       {/* Chapter Index panel */}
       {showIndex ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowIndex(false)
             }
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300">
-            <div className="p-6 pb-4 border-b border-slate-700">
+          <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card text-gray-800 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
+            <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold">Chapters</h2>
             </div>
             <div className="overflow-y-auto flex-1 px-4 py-2">
@@ -582,24 +593,24 @@ export function ReaderPage({
                       setShowIndex(false)
                       slideEntryTime.current = Date.now()
                     }}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition mb-2 ${
+                    className={`w-full text-left px-4 py-3 rounded-xl transition mb-2 ${
                       isActive
-                        ? 'bg-indigo-500/20 border border-indigo-500'
-                        : 'bg-slate-800 hover:bg-slate-700'
+                        ? 'bg-primary-100 border border-primary-300 dark:bg-primary-900/50 dark:border-primary-700'
+                        : 'bg-white/70 hover:bg-white dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-slate-100">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100">
                           {chapter.title}
                         </div>
-                        <div className="text-xs text-slate-400 mt-1">
+                        <div className="text-xs text-gray-500 mt-1 dark:text-gray-400">
                           {chapter.slideCount}{' '}
                           {chapter.slideCount === 1 ? 'slide' : 'slides'}
                         </div>
                       </div>
                       {isActive && (
-                        <div className="ml-3 text-xs font-semibold text-indigo-400">
+                        <div className="ml-3 text-xs font-semibold text-primary-600 dark:text-primary-300">
                           Current
                         </div>
                       )}
@@ -608,10 +619,10 @@ export function ReaderPage({
                 )
               })}
             </div>
-            <div className="p-4 border-t border-slate-700">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 type="button"
-                className="w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+                className="w-full rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
                 onClick={() => setShowIndex(false)}
               >
                 Close
@@ -624,19 +635,19 @@ export function ReaderPage({
       {/* Settings panel */}
       {showSettings ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowSettings(false)
             }
           }}
         >
-          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
+          <div className="w-full max-w-sm rounded-3xl border border-gray-200 glass-card p-6 text-gray-800 shadow-xl animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
             <h2 className="text-lg font-semibold">Reader Settings</h2>
 
             {/* Auto-swipe toggle */}
             <div className="mt-6 flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-300">
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
                 Auto-swipe
               </label>
               <button
@@ -649,7 +660,7 @@ export function ReaderPage({
                   await storageService.setKV('autoAdvanceEnabled', newValue)
                 }}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                  isAutoSwipeEnabled ? 'bg-indigo-500' : 'bg-slate-700'
+                  isAutoSwipeEnabled ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-800'
                 }`}
               >
                 <span
@@ -662,25 +673,28 @@ export function ReaderPage({
 
             {/* Reading time status */}
             <div className="mt-6">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">
                 Auto-swipe timing
               </label>
-              <div className="mt-3 rounded-lg border border-slate-700 bg-slate-800 p-3">
+              <div className="mt-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-700 dark:bg-gray-900/60">
                 {readingEstimator.current.shouldEnableAutoplay() ? (
-                  <div className="text-sm text-slate-300">
+                  <div className="text-sm text-gray-700 dark:text-gray-200">
                     <div className="flex items-center justify-between">
                       <span>Predicted time:</span>
-                      <span className="font-semibold text-indigo-400">
-                        {readingEstimator.current.predict().toFixed(1)}s
+                      <span className="font-semibold text-primary-600 dark:text-primary-300">
+                        {readingEstimator.current
+                          .predict(slides[currentSlideIndex]?.words ?? 0)
+                          .toFixed(1)}
+                        s
                       </span>
                     </div>
-                    <div className="mt-1 text-xs text-slate-400">
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Based on {readingEstimator.current.getObservationCount()}{' '}
                       slides read
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm text-slate-400">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     Learning your reading speed...
                     <div className="mt-1 text-xs">
                       {readingEstimator.current.getObservationCount()} of 5
@@ -693,7 +707,7 @@ export function ReaderPage({
 
             {/* Font picker */}
             <div className="mt-6">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">
                 Font
               </label>
               <div className="mt-3 flex gap-3">
@@ -705,8 +719,8 @@ export function ReaderPage({
                   }}
                   className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
                     selectedFont === 'inter'
-                      ? 'border-indigo-500 bg-indigo-500/20'
-                      : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
+                      ? 'border-primary-400 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/50'
+                      : 'border-gray-200 bg-white/70 hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
                   }`}
                 >
                   <span
@@ -724,8 +738,8 @@ export function ReaderPage({
                   }}
                   className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
                     selectedFont === 'literata'
-                      ? 'border-indigo-500 bg-indigo-500/20'
-                      : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
+                      ? 'border-primary-400 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/50'
+                      : 'border-gray-200 bg-white/70 hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
                   }`}
                 >
                   <span
@@ -743,8 +757,8 @@ export function ReaderPage({
                   }}
                   className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
                     selectedFont === 'merriweather'
-                      ? 'border-indigo-500 bg-indigo-500/20'
-                      : 'border-slate-700 bg-slate-800 hover:bg-slate-700'
+                      ? 'border-primary-400 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/50'
+                      : 'border-gray-200 bg-white/70 hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
                   }`}
                 >
                   <span
@@ -757,9 +771,23 @@ export function ReaderPage({
               </div>
             </div>
 
+            <div className="mt-6 flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                Appearance
+              </label>
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200 dark:hover:bg-gray-900/80"
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? 'Dark' : 'Light'}
+              </button>
+            </div>
+
             <button
               type="button"
-              className="mt-6 w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+              className="mt-6 w-full rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
               onClick={() => setShowSettings(false)}
             >
               Done
@@ -848,20 +876,20 @@ function BookmarksPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose()
         }
       }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300">
-        <div className="p-6 pb-4 border-b border-slate-700">
+      <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card text-gray-800 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
+        <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold">Bookmarks</h2>
         </div>
         <div className="overflow-y-auto flex-1 px-4 py-2">
           {bookmarks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+            <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500 dark:text-gray-400">
               <BookmarkX className="h-12 w-12 mb-3" />
               <p className="text-sm">No bookmarks yet</p>
               <p className="text-xs mt-1">
@@ -874,7 +902,7 @@ function BookmarksPanel({
               return (
                 <div
                   key={bookmark.id}
-                  className="mb-3 rounded-lg border border-slate-700 bg-slate-800 p-4 transition hover:bg-slate-750"
+                  className="mb-3 rounded-xl border border-gray-200 bg-white/70 p-4 transition hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <button
@@ -882,22 +910,22 @@ function BookmarksPanel({
                       className="flex-1 text-left"
                       onClick={() => onNavigate(bookmark.slideIndex)}
                     >
-                      <div className="text-xs font-medium text-indigo-400 mb-2">
+                      <div className="text-xs font-medium text-primary-600 mb-2 dark:text-primary-300">
                         {chapter?.title || 'Unknown Chapter'} · Slide{' '}
                         {bookmark.slideIndex + 1}
                       </div>
-                      <div className="text-sm text-slate-300 mb-2 line-clamp-2">
+                      <div className="text-sm text-gray-700 mb-2 line-clamp-2 dark:text-gray-200">
                         {bookmark.snippet}
                       </div>
                       {bookmark.annotation && (
-                        <div className="text-sm text-slate-400 italic mt-2 border-l-2 border-slate-600 pl-2">
+                        <div className="text-sm text-gray-500 italic mt-2 border-l-2 border-gray-200 pl-2 dark:text-gray-400 dark:border-gray-700">
                           {bookmark.annotation}
                         </div>
                       )}
                     </button>
                     <button
                       type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-700 hover:text-red-400"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-error-500 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-error-300"
                       onClick={(e) => {
                         e.stopPropagation()
                         onDelete(bookmark.id)
@@ -912,10 +940,10 @@ function BookmarksPanel({
             })
           )}
         </div>
-        <div className="p-4 border-t border-slate-700">
+        <div className="p-4 border-t border-gray-200">
           <button
             type="button"
-            className="w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+            className="w-full rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500"
             onClick={onClose}
           >
             Close
@@ -945,7 +973,7 @@ function AddBookmarkModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel()
@@ -954,16 +982,16 @@ function AddBookmarkModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl animate-in slide-in-from-bottom-4 duration-300">
+      <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card p-6 text-gray-800 shadow-xl animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
         <h2 className="text-lg font-semibold">
           {isEditing ? 'Edit Bookmark' : 'Add Bookmark'}
         </h2>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-slate-300">
+          <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">
             Slide content
           </label>
-          <div className="mt-2 rounded-lg bg-slate-800 p-3 text-sm text-slate-300 max-h-32 overflow-y-auto">
+          <div className="mt-2 rounded-lg bg-white/80 p-3 text-sm text-gray-700 max-h-32 overflow-y-auto dark:bg-gray-900/60 dark:text-gray-200">
             {slideText}
           </div>
         </div>
@@ -971,13 +999,13 @@ function AddBookmarkModal({
         <div className="mt-4">
           <label
             htmlFor="annotation"
-            className="block text-sm font-medium text-slate-300"
+            className="block text-sm font-medium text-gray-600"
           >
             Your note (optional)
           </label>
           <textarea
             id="annotation"
-            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className="mt-2 w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             placeholder="Add your thoughts or notes about this slide..."
             rows={3}
             value={annotation}
@@ -989,14 +1017,14 @@ function AddBookmarkModal({
         <div className="mt-6 flex gap-3">
           <button
             type="button"
-            className="flex-1 rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+            className="flex-1 rounded-full border border-gray-200 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-white"
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="flex-1 rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+            className="flex-1 rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500"
             onClick={() => onSave(annotation)}
           >
             {isEditing ? 'Update' : 'Save'}

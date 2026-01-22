@@ -1,4 +1,7 @@
 import JSZip from 'jszip'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
  * Create a minimal valid EPUB for testing
@@ -79,9 +82,22 @@ export async function createTestEpub(chapters: Array<{ title: string; content: s
  * Load a fixture EPUB file for testing
  */
 export async function loadFixtureEpub(filename: string): Promise<ArrayBuffer> {
-  const response = await fetch(`/src/parser/fixtures/${filename}`)
-  if (!response.ok) {
+  const fixturesDir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    'fixtures'
+  )
+  const filePath = path.join(fixturesDir, filename)
+
+  try {
+    const buffer = await readFile(filePath)
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  } catch (error) {
+    if (typeof fetch === 'function') {
+      const response = await fetch(`/src/parser/fixtures/${filename}`)
+      if (response.ok) {
+        return response.arrayBuffer()
+      }
+    }
     throw new Error(`Failed to load fixture: ${filename}`)
   }
-  return response.arrayBuffer()
 }

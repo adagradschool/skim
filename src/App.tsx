@@ -47,8 +47,8 @@ function App() {
   if (isCheckingLastBook) {
     return (
       <KonstaApp theme="ios" safeAreas>
-        <div className="flex h-screen items-center justify-center bg-slate-950">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-500 dark:text-gray-400" />
         </div>
         <InstallPrompt />
       </KonstaApp>

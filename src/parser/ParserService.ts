@@ -9,6 +9,7 @@ import type { ChapterText, ParseResult, ParseProgress } from './types'
  * Extracts visible text while preserving chapter boundaries and paragraph breaks.
  */
 export class ParserService {
+  private static readonly LOAD_TIMEOUT_MS = 5000
   /**
    * Parse an EPUB file from an ArrayBuffer
    *
@@ -107,7 +108,8 @@ export class ParserService {
    */
   private async loadEpub(data: ArrayBuffer): Promise<Book> {
     const book = ePub(data)
-    await book.ready
+    const timeoutMs = this.getLoadTimeoutMs(data.byteLength)
+    await this.withTimeout(book.ready, timeoutMs, 'EPUB load timed out')
     return book
   }
 
@@ -317,6 +319,35 @@ export class ParserService {
   private countWords(text: string): number {
     // Split on whitespace and filter empty strings
     return text.split(/\s+/).filter((word) => word.length > 0).length
+  }
+
+  private getLoadTimeoutMs(byteLength: number): number {
+    if (byteLength > 100_000) {
+      return 18000
+    }
+    return ParserService.LOAD_TIMEOUT_MS
+  }
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    message: string
+  ): Promise<T> {
+    let timeoutId: number | undefined
+
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(message))
+      }, timeoutMs)
+    })
+
+    try {
+      return await Promise.race([promise, timeout])
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+      }
+    }
   }
 }
 
