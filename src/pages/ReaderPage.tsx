@@ -410,6 +410,74 @@ export function ReaderPage({
     [goToNext, goToPrevious]
   )
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+
+      const target = event.target as HTMLElement | null
+      const isEditableTarget =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+
+      const isPanelOpen =
+        showSettings || showIndex || showAddBookmark || showBookmarks
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (showAddBookmark) {
+          setShowAddBookmark(false)
+        } else if (showBookmarks) {
+          setShowBookmarks(false)
+        } else if (showIndex) {
+          setShowIndex(false)
+        } else if (showSettings) {
+          setShowSettings(false)
+        } else {
+          setShowControls(false)
+        }
+        return
+      }
+
+      if (isEditableTarget) return
+      if (isPanelOpen) return
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        goToNext()
+        setIsPaused(false)
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        goToPrevious()
+        setIsPaused(false)
+      }
+
+      if (event.code === 'Space') {
+        event.preventDefault()
+        setIsPaused((prev) => !prev)
+      }
+
+      if (event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        setShowAddBookmark(true)
+        setShowControls(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    goToNext,
+    goToPrevious,
+    showSettings,
+    showIndex,
+    showAddBookmark,
+    showBookmarks,
+  ])
+
   // Calculate current progress (match HomePage calculation)
   const currentProgress =
     slides.length > 0
