@@ -12,8 +12,9 @@ import {
 import { storageService } from '@/db/StorageService'
 import type { Book, Progress } from '@/db/types'
 import { importService, type ImportProgressUpdate } from '@/importer/ImportService'
-import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark, Sun, Moon } from 'lucide-react'
 import { ReaderPage } from '@/pages/ReaderPage'
+import { useTheme } from '@/hooks/useTheme'
 
 interface LibraryEntry {
   id: string
@@ -41,6 +42,7 @@ type ImportStage = (typeof IMPORT_STAGES)[number] | 'idle'
 type StepStatus = 'pending' | 'active' | 'done' | 'error'
 
 export function HomePage() {
+  const { theme, toggleTheme } = useTheme()
   const [entries, setEntries] = useState<LibraryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -138,21 +140,34 @@ export function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="flex items-center justify-center px-6 pt-6 pb-4">
-        <div className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-slate-400">Skim</p>
+    <div className="relative min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-grid-light dark:bg-grid-dark" />
+      <div className="pointer-events-none absolute inset-0 -z-20 page-glow dark:page-glow-dark" />
+
+      <header className="flex items-center justify-between px-6 pt-8 pb-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-gray-500 dark:text-gray-400">Skim</p>
+          <h1 className="mt-2 font-display text-2xl text-gray-900 dark:text-gray-100">Your Library</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Pick up where you left off or start something new.</p>
         </div>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/80 text-gray-600 shadow-sm transition hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </button>
       </header>
 
       <main className="flex-1 px-6 pb-24">
         {loading ? (
           <div className="flex h-32 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-gray-500 dark:text-gray-400" />
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-400/30 bg-red-950/40 p-4 text-sm text-red-200">
-            <div className="mb-2 flex items-center gap-2 font-semibold">
+          <div className="rounded-2xl border border-error-200 bg-error-50 p-4 text-sm text-error-700 shadow-sm dark:border-error-800 dark:bg-error-900/40 dark:text-error-200">
+            <div className="mb-2 flex items-center gap-2 font-semibold text-error-600 dark:text-error-300">
               <AlertTriangle className="h-4 w-4" /> Error
             </div>
             {error}
@@ -177,7 +192,7 @@ export function HomePage() {
 
       <button
         type="button"
-        className="fixed bottom-6 right-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-indigo-500 text-white shadow-lg transition hover:bg-indigo-400"
+        className="fixed bottom-6 right-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-lg transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
         aria-label="Upload Document"
         onClick={() => setUploadOpen(true)}
       >
@@ -214,7 +229,7 @@ function IconButton({ label, children }: IconButtonProps) {
     <button
       type="button"
       aria-label={label}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 transition hover:bg-slate-800"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/80 text-gray-600 shadow-sm transition hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
     >
       {children}
     </button>
@@ -402,20 +417,20 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm"
       onClick={handleOverlayClick}
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
+      <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card p-6 text-gray-800 shadow-xl dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold">Import Document</h2>
-            <p className="mt-1 text-sm text-slate-400">Add an EPUB or PDF from your device.</p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Add an EPUB or PDF from your device.</p>
           </div>
           <button
             type="button"
-            className="rounded-full p-2 text-slate-400 transition hover:text-slate-100"
+            className="rounded-full p-2 text-gray-500 transition hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100"
             aria-label="Close"
             onClick={() => {
               if (!canDismiss) return
@@ -429,21 +444,23 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
         </div>
 
         <div
-          className={`mt-6 flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 text-center transition ${
-            dragActive ? 'border-slate-200 bg-slate-800/60' : 'border-slate-700 bg-slate-800/40'
+          className={`mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition ${
+            dragActive
+              ? 'border-primary-400 bg-primary-50/80 dark:border-primary-500 dark:bg-primary-900/40'
+              : 'border-gray-200 bg-white/60 dark:border-gray-700 dark:bg-gray-900/50'
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-300">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
             <Upload className="h-6 w-6" />
           </div>
           <p className="mt-4 text-base font-medium">Drag & drop your document</p>
-          <p className="mt-1 text-sm text-slate-400">or</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">or</p>
           <button
             type="button"
-            className="mt-4 inline-flex items-center rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+            className="mt-4 inline-flex items-center rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
             onClick={handleBrowseClick}
             disabled={isUploading}
           >
@@ -456,24 +473,24 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
             className="hidden"
             onChange={handleFileInputChange}
           />
-          <p className="mt-4 text-xs text-slate-400">EPUB or PDF · Up to 20 MB</p>
-          {fileName ? <p className="mt-3 text-sm text-slate-300">Selected: {fileName}</p> : null}
+          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">EPUB or PDF · Up to 20 MB</p>
+          {fileName ? <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Selected: {fileName}</p> : null}
         </div>
 
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-slate-300">
+            <span className="text-gray-600 dark:text-gray-300">
               {progressStage !== 'idle' ? STAGE_LABELS[progressStage as ImportStage] : 'Ready'}
             </span>
-            <span className="text-slate-400">
+            <span className="text-gray-500 dark:text-gray-400">
               {progressStage !== 'idle' && progressStage !== 'complete'
                 ? `${IMPORT_STAGES.indexOf(progressStage as ImportStage) + 1}/${IMPORT_STAGES.length}`
                 : ''}
             </span>
           </div>
-          <div className="relative h-2 overflow-hidden rounded-full bg-slate-800">
+          <div className="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
             <div
-              className="absolute left-0 top-0 h-full bg-indigo-500 transition-all duration-300"
+              className="absolute left-0 top-0 h-full bg-primary-500 transition-all duration-300"
               style={{
                 width: `${
                   progressStage === 'idle'
@@ -488,17 +505,17 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
         </div>
 
         {progressMessage ? (
-          <p className="mt-3 text-sm text-slate-400">{progressMessage}</p>
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{progressMessage}</p>
         ) : null}
 
         {error ? (
-          <p className="mt-3 rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-200">{error}</p>
+          <p className="mt-3 rounded-lg bg-error-50 px-4 py-2 text-sm text-error-600 dark:bg-error-900/40 dark:text-error-200">{error}</p>
         ) : null}
 
         <div className="mt-6 flex items-center justify-between text-sm">
           <button
             type="button"
-            className="text-slate-300 transition hover:text-white disabled:text-slate-600"
+            className="text-gray-600 transition hover:text-gray-900 disabled:text-gray-400 dark:text-gray-300 dark:hover:text-gray-100"
             onClick={handleCancel}
             disabled={!isUploading}
           >
@@ -508,7 +525,9 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
           <button
             type="button"
             className={`inline-flex items-center rounded-full px-4 py-2 font-semibold transition ${
-              canDismiss ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-slate-700 text-slate-400'
+              canDismiss
+                ? 'bg-primary-600 text-white hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400'
+                : 'bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
             }`}
             onClick={() => {
               if (!canDismiss) return
@@ -532,11 +551,11 @@ interface ProgressStepProps {
 
 function ProgressStep({ label, status }: ProgressStepProps) {
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-slate-800/60 px-4 py-3">
-      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-sm">
+    <div className="flex items-center gap-3 rounded-lg bg-white/70 px-4 py-3 text-gray-700 shadow-sm dark:bg-gray-900/50 dark:text-gray-200">
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary-100 text-sm text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
         {statusIcon(status)}
       </span>
-      <span className="text-sm text-slate-200">{label}</span>
+      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
     </div>
   )
 }
@@ -566,13 +585,13 @@ function LibraryCard({ entry, onDelete, onOpen, onViewBookmarks }: LibraryCardPr
 
   return (
     <article
-      className="relative cursor-pointer rounded-2xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-slate-700 hover:bg-slate-900"
+      className="relative cursor-pointer rounded-3xl border border-gray-200 glass-card-dark p-4 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-lg dark:border-gray-700 dark:glass-card-dark"
       onClick={onOpen}
     >
       <div className="absolute right-2 top-2 z-10">
         <button
           type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-800 hover:text-slate-100"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition hover:bg-white/80 hover:text-gray-800 dark:text-gray-300 dark:hover:bg-gray-900/80 dark:hover:text-gray-100"
           aria-label="Book options"
           onClick={(e) => {
             e.stopPropagation()
@@ -587,10 +606,10 @@ function LibraryCard({ entry, onDelete, onOpen, onViewBookmarks }: LibraryCardPr
               e.stopPropagation()
               setMenuOpen(false)
             }} />
-            <div className="absolute right-0 top-10 z-20 w-48 rounded-lg border border-slate-700 bg-slate-800 py-1 shadow-xl">
+            <div className="absolute right-0 top-10 z-20 w-48 rounded-xl border border-gray-200 bg-white/95 py-1 shadow-xl dark:border-gray-700 dark:bg-gray-900/95">
               <button
                 type="button"
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-slate-300 transition hover:bg-slate-700"
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                 onClick={(e) => {
                   e.stopPropagation()
                   setMenuOpen(false)
@@ -602,7 +621,7 @@ function LibraryCard({ entry, onDelete, onOpen, onViewBookmarks }: LibraryCardPr
               </button>
               <button
                 type="button"
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-red-400 transition hover:bg-slate-700"
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-error-600 transition hover:bg-gray-100 dark:text-error-300 dark:hover:bg-gray-800"
                 onClick={(e) => {
                   e.stopPropagation()
                   setMenuOpen(false)
@@ -617,18 +636,18 @@ function LibraryCard({ entry, onDelete, onOpen, onViewBookmarks }: LibraryCardPr
         ) : null}
       </div>
       <div className="flex items-center gap-4">
-        <div className="h-20 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-slate-800">
+        <div className="h-20 w-16 flex-shrink-0 overflow-hidden rounded-xl bg-primary-100 dark:bg-primary-900/50">
           {entry.coverUrl ? (
             <img src={entry.coverUrl} alt="Book cover" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-slate-400">
+            <div className="flex h-full w-full items-center justify-center text-primary-600 dark:text-primary-200">
               <BookOpen className="h-6 w-6" />
             </div>
           )}
         </div>
         <div className="flex flex-1 flex-col pr-8">
-          <h3 className="text-base font-semibold text-white">{entry.title}</h3>
-          {entry.author ? <p className="mt-1 text-sm text-slate-400">{entry.author}</p> : null}
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{entry.title}</h3>
+          {entry.author ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{entry.author}</p> : null}
           <div className="mt-3">
             <ProgressBar percent={entry.progressPercent ?? 0} />
           </div>
@@ -645,25 +664,25 @@ interface ProgressBarProps {
 function ProgressBar({ percent }: ProgressBarProps) {
   const clamped = Math.min(100, Math.max(0, Math.round(percent)))
   return (
-    <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
-      <div className="absolute left-0 top-0 h-full bg-slate-200" style={{ width: `${clamped}%` }} />
+    <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-primary-100 dark:bg-gray-800">
+      <div className="absolute left-0 top-0 h-full bg-primary-500 dark:bg-primary-400" style={{ width: `${clamped}%` }} />
     </div>
   )
 }
 
 function EmptyLibrary({ onUpload }: { onUpload: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/60 px-6 py-16 text-center text-slate-300">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-800 text-slate-300">
+    <div className="flex flex-col items-center justify-center rounded-3xl border border-gray-200 glass-card px-6 py-16 text-center text-gray-600 shadow-lg dark:border-gray-700 dark:glass-card-dark dark:text-gray-300">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200">
         <Upload className="h-7 w-7" />
       </div>
-      <h2 className="mt-4 text-lg font-semibold text-white">Upload your first book</h2>
-      <p className="mt-2 text-sm text-slate-400">
+      <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">Upload your first book</h2>
+      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
         Import an EPUB or PDF to start reading quick-slide chapters.
       </p>
       <button
         type="button"
-        className="mt-6 inline-flex items-center rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400"
+        className="mt-6 inline-flex items-center rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
         onClick={onUpload}
       >
         Add a book
@@ -697,7 +716,7 @@ interface DeleteConfirmationModalProps {
 function DeleteConfirmationModal({ onConfirm, onCancel }: DeleteConfirmationModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel()
@@ -706,27 +725,27 @@ function DeleteConfirmationModal({ onConfirm, onCancel }: DeleteConfirmationModa
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-xl">
+      <div className="w-full max-w-sm rounded-3xl border border-gray-200 glass-card p-6 text-gray-800 shadow-xl dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20 text-red-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-error-50 text-error-600 dark:bg-error-900/40 dark:text-error-200">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <h2 className="text-lg font-semibold">Delete Book</h2>
         </div>
-        <p className="mt-4 text-sm text-slate-300">
+        <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
           Are you sure you want to delete this book? This will remove all your progress and cannot be undone.
         </p>
         <div className="mt-6 flex gap-3">
           <button
             type="button"
-            className="flex-1 rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-700"
+            className="flex-1 rounded-full border border-gray-200 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="flex-1 rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-400"
+            className="flex-1 rounded-full bg-error-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-error-400 dark:bg-error-600 dark:hover:bg-error-500"
             onClick={onConfirm}
           >
             Delete

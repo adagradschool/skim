@@ -106,21 +106,21 @@ export function InstallPrompt() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up sm:left-auto sm:right-4 sm:w-96">
-      <div className="rounded-2xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-sm">
+      <div className="rounded-3xl border border-gray-200 glass-card p-4 shadow-2xl dark:border-gray-700 dark:glass-card-dark">
         <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 dark:bg-primary-500">
             <Download className="h-6 w-6 text-white" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-slate-100">Install Skim</h3>
-            <p className="mt-1 text-sm text-slate-400">
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Install Skim</h3>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
               Install the app for a better reading experience and offline access.
             </p>
           </div>
           <button
             type="button"
             onClick={handleDismiss}
-            className="text-slate-400 transition hover:text-slate-300"
+            className="text-gray-500 transition hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100"
             aria-label="Dismiss"
           >
             <X className="h-5 w-5" />
@@ -130,14 +130,14 @@ export function InstallPrompt() {
           <button
             type="button"
             onClick={handleDismiss}
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
+            className="flex-1 rounded-lg border border-gray-200 bg-white/80 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Not now
           </button>
           <button
             type="button"
             onClick={handleInstallClick}
-            className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
+            className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-400"
           >
             Install
           </button>
