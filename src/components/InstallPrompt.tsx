@@ -106,21 +106,21 @@ export function InstallPrompt() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up sm:left-auto sm:right-4 sm:w-96">
-      <div className="rounded-3xl border border-gray-200 glass-card p-4 shadow-2xl dark:border-gray-700 dark:glass-card-dark">
+      <div className="nb-box-lg p-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-600 dark:bg-primary-500">
-            <Download className="h-6 w-6 text-white" />
+          <div className="nb-box-flat flex h-12 w-12 items-center justify-center bg-lime dark:bg-lime">
+            <Download className="h-6 w-6 text-black" strokeWidth={2.5} />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Install Skim</h3>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+            <h3 className="text-base font-extrabold">Install Skim</h3>
+            <p className="mt-1 text-sm text-fg-muted dark:text-fg-muted-dark">
               Install the app for a better reading experience and offline access.
             </p>
           </div>
           <button
             type="button"
             onClick={handleDismiss}
-            className="text-gray-500 transition hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100"
+            className="nb-btn nb-btn-neutral h-8 w-8"
             aria-label="Dismiss"
           >
             <X className="h-5 w-5" />
@@ -130,14 +130,14 @@ export function InstallPrompt() {
           <button
             type="button"
             onClick={handleDismiss}
-            className="flex-1 rounded-lg border border-gray-200 bg-white/80 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-white dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="nb-btn nb-btn-neutral flex-1 px-4 py-2 text-sm"
           >
             Not now
           </button>
           <button
             type="button"
             onClick={handleInstallClick}
-            className="flex-1 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-400"
+            className="nb-btn nb-btn-main flex-1 px-4 py-2 text-sm"
           >
             Install
           </button>

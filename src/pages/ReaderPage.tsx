@@ -13,12 +13,15 @@ import {
 } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 import { useTheme } from '@/hooks/useTheme'
+import { useHardwareNav } from '@/hooks/useHardwareNav'
 
 interface ReaderPageProps {
   bookId: string
   onExit: () => void
   openBookmarksOnMount?: boolean
 }
+
+const ICON_STROKE = 2.5
 
 export function ReaderPage({
   bookId,
@@ -36,6 +39,7 @@ export function ReaderPage({
   const [error, setError] = useState<string | null>(null)
   const [bookTitle, setBookTitle] = useState<string>('')
   const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(false)
+  const [isHardwareNavEnabled, setIsHardwareNavEnabled] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showIndex, setShowIndex] = useState(false)
   const [showControls, setShowControls] = useState(false)
@@ -138,6 +142,10 @@ export function ReaderPage({
         const autoAdvanceSetting =
           await storageService.getKV('autoAdvanceEnabled')
         setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
+
+        const hardwareNavSetting =
+          await storageService.getKV('hardwareNavEnabled')
+        setIsHardwareNavEnabled(hardwareNavSetting ?? false)
 
         const savedFont = await storageService.getKV('selectedFont')
         if (
@@ -251,6 +259,23 @@ export function ReaderPage({
       await storageService.setProgress(bookId, newIndex)
     }
   }, [slides, currentSlideIndex, bookId, resetInactivityTimer])
+
+  const isPanelOpen =
+    showSettings || showIndex || showAddBookmark || showBookmarks
+
+  // Hardware buttons (volume rocker where exposed, headset / BT remotes via Media Session)
+  useHardwareNav({
+    enabled: isHardwareNavEnabled && !loading && !isPanelOpen,
+    onNext: () => {
+      goToNext()
+      setIsPaused(false)
+    },
+    onPrevious: () => {
+      goToPrevious()
+      setIsPaused(false)
+    },
+    title: bookTitle,
+  })
 
   // Auto-advance functionality
   const stopAutoAdvance = useCallback(() => {
@@ -421,7 +446,7 @@ export function ReaderPage({
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable)
 
-      const isPanelOpen =
+      const panelOpen =
         showSettings || showIndex || showAddBookmark || showBookmarks
 
       if (event.key === 'Escape') {
@@ -441,7 +466,7 @@ export function ReaderPage({
       }
 
       if (isEditableTarget) return
-      if (isPanelOpen) return
+      if (panelOpen) return
 
       if (event.key === 'ArrowRight') {
         event.preventDefault()
@@ -504,25 +529,27 @@ export function ReaderPage({
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500 dark:text-gray-400" />
+      <div className="flex h-screen items-center justify-center bg-bg dark:bg-bg-dark">
+        <div className="nb-box flex h-16 w-16 items-center justify-center bg-yellow dark:bg-yellow">
+          <Loader2 className="h-8 w-8 animate-spin text-black" strokeWidth={ICON_STROKE} />
+        </div>
       </div>
     )
   }
 
   if (error || slides.length === 0) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center bg-gray-50 px-6 text-gray-800 dark:bg-gray-900 dark:text-gray-100">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-error-50 text-error-600 dark:bg-error-900/40 dark:text-error-200">
-          <AlertTriangle className="h-8 w-8" />
+      <div className="flex h-screen flex-col items-center justify-center bg-bg px-6 text-fg dark:bg-bg-dark dark:text-fg-dark">
+        <div className="nb-box flex h-16 w-16 items-center justify-center bg-danger text-black dark:bg-danger-dark">
+          <AlertTriangle className="h-8 w-8" strokeWidth={ICON_STROKE} />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h2 className="mt-5 text-xl font-extrabold uppercase">
           Failed to Load Book
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">{error}</p>
+        <p className="mt-2 text-center text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">{error}</p>
         <button
           type="button"
-          className="mt-6 rounded-full bg-primary-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
+          className="nb-btn nb-btn-main mt-6 px-6 py-2.5 text-sm"
           onClick={onExit}
         >
           Back to Library
@@ -533,26 +560,24 @@ export function ReaderPage({
 
   return (
     <div
-      className="relative flex h-screen flex-col overflow-hidden bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100"
+      className="relative flex h-screen flex-col overflow-hidden bg-bg bg-dots text-fg dark:bg-bg-dark dark:bg-dots-dark dark:text-fg-dark"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       style={{ touchAction: 'none' }}
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-grid-light dark:bg-grid-dark" />
-      <div className="pointer-events-none absolute inset-0 -z-20 page-glow dark:page-glow-dark" />
-      {/* Progress bar */}
-      <div className="absolute left-0 right-0 top-0 z-20 h-1 bg-gray-200 dark:bg-gray-800">
+      {/* Auto-advance progress bar */}
+      <div className="absolute left-0 right-0 top-0 z-20 h-2 border-b-2 border-border bg-surface dark:bg-surface-muted-dark">
         <div
-          className="h-full bg-primary-500 transition-all duration-100 ease-linear dark:bg-primary-400"
+          className="h-full bg-main transition-all duration-100 ease-linear dark:bg-main-dark"
           style={{ width: `${progressPercent}%` }}
         />
       </div>
 
       {/* Main slide content */}
-      <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-8 py-20">
-        <div className="w-full max-w-2xl flex-1 flex items-center">
+      <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-20">
+        <div className="nb-box-lg flex w-full max-w-2xl flex-1 items-center overflow-hidden px-6 py-8 sm:px-10">
           <p
-            className="text-xl leading-relaxed text-gray-800 sm:text-2xl sm:leading-relaxed dark:text-gray-100"
+            className="w-full text-xl font-medium leading-relaxed sm:text-2xl sm:leading-relaxed"
             style={{
               fontFamily:
                 selectedFont === 'inter'
@@ -567,7 +592,7 @@ export function ReaderPage({
         </div>
         {bookTitle && (
           <div className="w-full max-w-2xl pt-4">
-            <h2 className="text-sm text-gray-500 dark:text-gray-400">{bookTitle}</h2>
+            <span className="nb-chip bg-surface dark:bg-surface-dark">{bookTitle}</span>
           </div>
         )}
       </main>
@@ -575,46 +600,46 @@ export function ReaderPage({
       {/* Top bar with back button, index, and settings */}
       {showControls && (
         <>
-          <div className="absolute left-4 top-4 z-10">
+          <div className="absolute left-4 top-6 z-10">
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="nb-icon-btn nb-btn-neutral"
               aria-label="Back to Library"
               onClick={(e) => {
                 e.stopPropagation()
                 onExit()
               }}
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-5 w-5" strokeWidth={ICON_STROKE} />
             </button>
           </div>
-          <div className="absolute right-4 top-4 z-10 flex gap-2">
+          <div className="absolute right-4 top-6 z-10 flex gap-3">
             {isCurrentSlideBookmarked && (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-700 shadow-sm dark:bg-primary-900/50 dark:text-primary-200">
-                <BookmarkCheck className="h-5 w-5" />
+              <div className="nb-box flex h-11 w-11 items-center justify-center bg-yellow text-black dark:bg-yellow">
+                <BookmarkCheck className="h-5 w-5" strokeWidth={ICON_STROKE} />
               </div>
             )}
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="nb-icon-btn nb-btn-neutral"
               aria-label="Chapter Index"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowIndex(!showIndex)
               }}
             >
-              <List className="h-5 w-5" />
+              <List className="h-5 w-5" strokeWidth={ICON_STROKE} />
             </button>
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-gray-700 shadow-sm transition hover:bg-white dark:bg-gray-800/80 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="nb-icon-btn nb-btn-neutral"
               aria-label="Settings"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowSettings(!showSettings)
               }}
             >
-              <Settings className="h-5 w-5" />
+              <Settings className="h-5 w-5" strokeWidth={ICON_STROKE} />
             </button>
           </div>
         </>
@@ -623,10 +648,8 @@ export function ReaderPage({
       {/* Footer with progress percentage */}
       {showControls && (
         <footer className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-6">
-          <div className="mx-auto max-w-2xl">
-            <div className="flex items-center justify-center text-xs text-gray-500 dark:text-gray-400">
-              <span>{Math.round(currentProgress)}% complete</span>
-            </div>
+          <div className="mx-auto flex max-w-2xl items-center justify-center">
+            <span className="nb-chip bg-lime text-black">{Math.round(currentProgress)}% complete</span>
           </div>
         </footer>
       )}
@@ -634,18 +657,18 @@ export function ReaderPage({
       {/* Chapter Index panel */}
       {showIndex ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
+          className="nb-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowIndex(false)
             }
           }}
         >
-          <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card text-gray-800 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
-            <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold">Chapters</h2>
+          <div className="nb-modal flex max-h-[80vh] max-w-md flex-col overflow-hidden">
+            <div className="border-b-2 border-border bg-main p-5 text-black dark:bg-main-dark">
+              <h2 className="text-xl font-extrabold uppercase">Chapters</h2>
             </div>
-            <div className="overflow-y-auto flex-1 px-4 py-2">
+            <div className="flex-1 overflow-y-auto px-4 py-4">
               {chapters.map((chapter) => {
                 const isActive = chapter.chapterIndex === currentChapter
                 return (
@@ -661,36 +684,34 @@ export function ReaderPage({
                       setShowIndex(false)
                       slideEntryTime.current = Date.now()
                     }}
-                    className={`w-full text-left px-4 py-3 rounded-xl transition mb-2 ${
-                      isActive
-                        ? 'bg-primary-100 border border-primary-300 dark:bg-primary-900/50 dark:border-primary-700'
-                        : 'bg-white/70 hover:bg-white dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
+                    className={`nb-btn mb-3 w-full justify-start px-4 py-3 text-left ${
+                      isActive ? 'nb-btn-yellow' : 'nb-btn-neutral'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex w-full items-center justify-between">
                       <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100">
+                        <div className="text-sm font-extrabold">
                           {chapter.title}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                        <div className="mt-1 text-xs font-semibold opacity-70">
                           {chapter.slideCount}{' '}
                           {chapter.slideCount === 1 ? 'slide' : 'slides'}
                         </div>
                       </div>
                       {isActive && (
-                        <div className="ml-3 text-xs font-semibold text-primary-600 dark:text-primary-300">
+                        <span className="nb-chip ml-3 bg-surface text-black">
                           Current
-                        </div>
+                        </span>
                       )}
                     </div>
                   </button>
                 )
               })}
             </div>
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="border-t-2 border-border p-4">
               <button
                 type="button"
-                className="w-full rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
+                className="nb-btn nb-btn-main w-full px-4 py-2.5 text-sm"
                 onClick={() => setShowIndex(false)}
               >
                 Close
@@ -703,68 +724,72 @@ export function ReaderPage({
       {/* Settings panel */}
       {showSettings ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
+          className="nb-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowSettings(false)
             }
           }}
         >
-          <div className="w-full max-w-sm rounded-3xl border border-gray-200 glass-card p-6 text-gray-800 shadow-xl animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
-            <h2 className="text-lg font-semibold">Reader Settings</h2>
+          <div className="nb-modal max-h-[85vh] max-w-sm overflow-y-auto p-6">
+            <h2 className="text-xl font-extrabold uppercase">Reader Settings</h2>
 
             {/* Auto-swipe toggle */}
             <div className="mt-6 flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                Auto-swipe
-              </label>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isAutoSwipeEnabled}
-                onClick={async () => {
-                  const newValue = !isAutoSwipeEnabled
+              <label className="text-sm font-bold">Auto-swipe</label>
+              <Toggle
+                checked={isAutoSwipeEnabled}
+                onChange={async (newValue) => {
                   setIsAutoSwipeEnabled(newValue)
                   await storageService.setKV('autoAdvanceEnabled', newValue)
                 }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                  isAutoSwipeEnabled ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-800'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                    isAutoSwipeEnabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              />
+            </div>
+
+            {/* Hardware buttons toggle */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-bold">Volume buttons turn pages</label>
+                <Toggle
+                  checked={isHardwareNavEnabled}
+                  onChange={async (newValue) => {
+                    setIsHardwareNavEnabled(newValue)
+                    await storageService.setKV('hardwareNavEnabled', newValue)
+                  }}
                 />
-              </button>
+              </div>
+              <p className="mt-2 text-xs font-semibold leading-snug text-fg-muted dark:text-fg-muted-dark">
+                Up = next, down = previous. In the Skim Android app the rocker
+                is captured directly. In a browser, Chrome on Android and iOS
+                Safari keep the rocker for themselves, so there this only reaches
+                headset and Bluetooth page-turner buttons via a silent media session.
+              </p>
             </div>
 
             {/* Reading time status */}
             <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">
-                Auto-swipe timing
-              </label>
-              <div className="mt-3 rounded-xl border border-gray-200 bg-white/70 p-3 dark:border-gray-700 dark:bg-gray-900/60">
+              <label className="block text-sm font-bold">Auto-swipe timing</label>
+              <div className="nb-muted mt-3 p-3">
                 {readingEstimator.current.shouldEnableAutoplay() ? (
-                  <div className="text-sm text-gray-700 dark:text-gray-200">
+                  <div className="text-sm font-semibold">
                     <div className="flex items-center justify-between">
                       <span>Predicted time:</span>
-                      <span className="font-semibold text-primary-600 dark:text-primary-300">
+                      <span className="nb-chip bg-lime text-black">
                         {readingEstimator.current
                           .predict(slides[currentSlideIndex]?.words ?? 0)
                           .toFixed(1)}
                         s
                       </span>
                     </div>
-                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="mt-2 text-xs text-fg-muted dark:text-fg-muted-dark">
                       Based on {readingEstimator.current.getObservationCount()}{' '}
                       slides read
                     </div>
                   </div>
                 ) : (
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                  <div className="text-sm font-semibold">
                     Learning your reading speed...
-                    <div className="mt-1 text-xs">
+                    <div className="mt-1 text-xs text-fg-muted dark:text-fg-muted-dark">
                       {readingEstimator.current.getObservationCount()} of 5
                       slides
                     </div>
@@ -775,78 +800,41 @@ export function ReaderPage({
 
             {/* Font picker */}
             <div className="mt-6">
-              <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">
-                Font
-              </label>
+              <label className="block text-sm font-bold">Font</label>
               <div className="mt-3 flex gap-3">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setSelectedFont('inter')
-                    await storageService.setKV('selectedFont', 'inter')
-                  }}
-                  className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
-                    selectedFont === 'inter'
-                      ? 'border-primary-400 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/50'
-                      : 'border-gray-200 bg-white/70 hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
-                  }`}
-                >
-                  <span
-                    className="text-2xl font-medium"
-                    style={{ fontFamily: 'Inter, sans-serif' }}
+                {(
+                  [
+                    ['inter', 'Inter, sans-serif'],
+                    ['literata', 'Literata, serif'],
+                    ['merriweather', 'Merriweather, serif'],
+                  ] as const
+                ).map(([font, family]) => (
+                  <button
+                    key={font}
+                    type="button"
+                    aria-pressed={selectedFont === font}
+                    onClick={async () => {
+                      setSelectedFont(font)
+                      await storageService.setKV('selectedFont', font)
+                    }}
+                    className={`nb-btn h-16 flex-1 ${
+                      selectedFont === font ? 'nb-btn-main' : 'nb-btn-neutral'
+                    }`}
                   >
-                    Aa
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setSelectedFont('literata')
-                    await storageService.setKV('selectedFont', 'literata')
-                  }}
-                  className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
-                    selectedFont === 'literata'
-                      ? 'border-primary-400 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/50'
-                      : 'border-gray-200 bg-white/70 hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
-                  }`}
-                >
-                  <span
-                    className="text-2xl font-medium"
-                    style={{ fontFamily: 'Literata, serif' }}
-                  >
-                    Aa
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setSelectedFont('merriweather')
-                    await storageService.setKV('selectedFont', 'merriweather')
-                  }}
-                  className={`flex h-16 flex-1 items-center justify-center rounded-lg border transition ${
-                    selectedFont === 'merriweather'
-                      ? 'border-primary-400 bg-primary-100 dark:border-primary-700 dark:bg-primary-900/50'
-                      : 'border-gray-200 bg-white/70 hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80'
-                  }`}
-                >
-                  <span
-                    className="text-2xl font-medium"
-                    style={{ fontFamily: 'Merriweather, serif' }}
-                  >
-                    Aa
-                  </span>
-                </button>
+                    <span className="text-2xl font-medium" style={{ fontFamily: family }}>
+                      Aa
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="mt-6 flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                Appearance
-              </label>
+              <label className="text-sm font-bold">Appearance</label>
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/80 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200 dark:hover:bg-gray-900/80"
+                className="nb-btn nb-btn-yellow px-3 py-2 text-xs uppercase tracking-wider"
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
                 {theme === 'dark' ? 'Dark' : 'Light'}
@@ -855,7 +843,7 @@ export function ReaderPage({
 
             <button
               type="button"
-              className="mt-6 w-full rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500 dark:bg-primary-500 dark:hover:bg-primary-400"
+              className="nb-btn nb-btn-main mt-6 w-full px-4 py-2.5 text-sm"
               onClick={() => setShowSettings(false)}
             >
               Done
@@ -913,6 +901,32 @@ export function ReaderPage({
   )
 }
 
+interface ToggleProps {
+  checked: boolean
+  onChange: (value: boolean) => void
+}
+
+function Toggle({ checked, onChange }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-nb border-2 border-border transition-colors ${
+        checked ? 'bg-lime' : 'bg-surface-muted dark:bg-surface-muted-dark'
+      }`}
+      style={{ boxShadow: 'var(--shadow-nb-sm)' }}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-nb border-2 border-border bg-surface transition-transform dark:bg-fg-dark ${
+          checked ? 'translate-x-7' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  )
+}
+
 interface BookmarksPanelProps {
   bookmarks: BookmarkType[]
   chapters: Chapter[]
@@ -944,24 +958,24 @@ function BookmarksPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="nb-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose()
         }
       }}
     >
-      <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card text-gray-800 shadow-xl overflow-hidden flex flex-col max-h-[80vh] animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
-        <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold">Bookmarks</h2>
+      <div className="nb-modal flex max-h-[80vh] max-w-md flex-col overflow-hidden">
+        <div className="border-b-2 border-border bg-yellow p-5 text-black">
+          <h2 className="text-xl font-extrabold uppercase">Bookmarks</h2>
         </div>
-        <div className="overflow-y-auto flex-1 px-4 py-2">
+        <div className="flex-1 overflow-y-auto px-4 py-4">
           {bookmarks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500 dark:text-gray-400">
-              <BookmarkX className="h-12 w-12 mb-3" />
-              <p className="text-sm">No bookmarks yet</p>
-              <p className="text-xs mt-1">
-                Tap the bookmark icon to save slides
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <BookmarkX className="mb-3 h-12 w-12" strokeWidth={2} />
+              <p className="text-sm font-extrabold">No bookmarks yet</p>
+              <p className="mt-1 text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">
+                Double-tap a slide to save it
               </p>
             </div>
           ) : (
@@ -970,7 +984,7 @@ function BookmarksPanel({
               return (
                 <div
                   key={bookmark.id}
-                  className="mb-3 rounded-xl border border-gray-200 bg-white/70 p-4 transition hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:bg-gray-900/80"
+                  className="nb-box mb-4 p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <button
@@ -978,29 +992,29 @@ function BookmarksPanel({
                       className="flex-1 text-left"
                       onClick={() => onNavigate(bookmark.slideIndex)}
                     >
-                      <div className="text-xs font-medium text-primary-600 mb-2 dark:text-primary-300">
+                      <span className="nb-chip mb-2 bg-main text-black dark:bg-main-dark">
                         {chapter?.title || 'Unknown Chapter'} · Slide{' '}
                         {bookmark.slideIndex + 1}
-                      </div>
-                      <div className="text-sm text-gray-700 mb-2 line-clamp-2 dark:text-gray-200">
+                      </span>
+                      <div className="mb-2 line-clamp-2 text-sm font-semibold">
                         {bookmark.snippet}
                       </div>
                       {bookmark.annotation && (
-                        <div className="text-sm text-gray-500 italic mt-2 border-l-2 border-gray-200 pl-2 dark:text-gray-400 dark:border-gray-700">
+                        <div className="mt-2 border-l-4 border-border pl-3 text-sm font-medium italic text-fg-muted dark:text-fg-muted-dark">
                           {bookmark.annotation}
                         </div>
                       )}
                     </button>
                     <button
                       type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-error-500 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-error-300"
+                      className="nb-btn nb-btn-danger h-9 w-9 shrink-0"
                       onClick={(e) => {
                         e.stopPropagation()
                         onDelete(bookmark.id)
                       }}
                       aria-label="Delete bookmark"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" strokeWidth={ICON_STROKE} />
                     </button>
                   </div>
                 </div>
@@ -1008,10 +1022,10 @@ function BookmarksPanel({
             })
           )}
         </div>
-        <div className="p-4 border-t border-gray-200">
+        <div className="border-t-2 border-border p-4">
           <button
             type="button"
-            className="w-full rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500"
+            className="nb-btn nb-btn-main w-full px-4 py-2.5 text-sm"
             onClick={onClose}
           >
             Close
@@ -1041,7 +1055,7 @@ function AddBookmarkModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-primary-900/30 px-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="nb-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onCancel()
@@ -1050,30 +1064,25 @@ function AddBookmarkModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md rounded-3xl border border-gray-200 glass-card p-6 text-gray-800 shadow-xl animate-in slide-in-from-bottom-4 duration-300 dark:border-gray-700 dark:glass-card-dark dark:text-gray-100">
-        <h2 className="text-lg font-semibold">
+      <div className="nb-modal max-w-md p-6">
+        <h2 className="text-xl font-extrabold uppercase">
           {isEditing ? 'Edit Bookmark' : 'Add Bookmark'}
         </h2>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-600 dark:text-gray-300">
-            Slide content
-          </label>
-          <div className="mt-2 rounded-lg bg-white/80 p-3 text-sm text-gray-700 max-h-32 overflow-y-auto dark:bg-gray-900/60 dark:text-gray-200">
+          <label className="block text-sm font-bold">Slide content</label>
+          <div className="nb-muted mt-2 max-h-32 overflow-y-auto p-3 text-sm font-medium">
             {slideText}
           </div>
         </div>
 
         <div className="mt-4">
-          <label
-            htmlFor="annotation"
-            className="block text-sm font-medium text-gray-600"
-          >
+          <label htmlFor="annotation" className="block text-sm font-bold">
             Your note (optional)
           </label>
           <textarea
             id="annotation"
-            className="mt-2 w-full rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="nb-input mt-2"
             placeholder="Add your thoughts or notes about this slide..."
             rows={3}
             value={annotation}
@@ -1085,14 +1094,14 @@ function AddBookmarkModal({
         <div className="mt-6 flex gap-3">
           <button
             type="button"
-            className="flex-1 rounded-full border border-gray-200 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-white"
+            className="nb-btn nb-btn-neutral flex-1 px-4 py-2 text-sm"
             onClick={onCancel}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="flex-1 rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-500"
+            className="nb-btn nb-btn-main flex-1 px-4 py-2 text-sm"
             onClick={() => onSave(annotation)}
           >
             {isEditing ? 'Update' : 'Save'}
