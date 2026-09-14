@@ -606,17 +606,8 @@ export function ReaderPage({
             {currentSlideText}
           </p>
         </div>
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3 pt-4">
-          {bookTitle ? (
-            <span className="nb-chip block min-w-0 flex-1 truncate bg-surface dark:bg-surface-dark">
-              {bookTitle}
-            </span>
-          ) : (
-            <span className="flex-1" />
-          )}
-          {showControls && (
-            <span className="nb-chip shrink-0 bg-lime text-black">{Math.round(currentProgress)}%</span>
-          )}
+        <div className="mx-auto w-full max-w-2xl pt-3 text-center text-[11px] font-bold tabular-nums tracking-widest text-fg/40 dark:text-fg-dark/40">
+          {Math.round(currentProgress)}%
         </div>
       </main>
 
