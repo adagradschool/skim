@@ -71,16 +71,18 @@ export class ImportService {
       let globalSlideIndex = 0
 
       for (const parsedChapter of parseResult.chapters) {
-        const chapterSlideTexts = chunkerService.chunkText(parsedChapter.text)
+        const chapterSlides = chunkerService.chunkChapter(parsedChapter)
+        const chapterSlideTexts = chapterSlides.map((slide) => slide.text)
         const firstSlideIndex = globalSlideIndex
 
-        for (const slideText of chapterSlideTexts) {
+        for (const slide of chapterSlides) {
           slides.push({
             bookId,
             slideIndex: globalSlideIndex++,
             chapter: parsedChapter.index,
-            words: this.countWords(slideText),
-            text: slideText,
+            words: this.countWords(slide.text),
+            text: slide.text,
+            content: slide,
           })
         }
 
@@ -167,16 +169,18 @@ export class ImportService {
       let globalSlideIndex = 0
 
       for (const parsedChapter of parseResult.chapters) {
-        const chapterSlideTexts = chunkerService.chunkText(parsedChapter.text)
+        const chapterSlides = chunkerService.chunkChapter(parsedChapter)
+        const chapterSlideTexts = chapterSlides.map((slide) => slide.text)
         const firstSlideIndex = globalSlideIndex
 
-        for (const slideText of chapterSlideTexts) {
+        for (const slide of chapterSlides) {
           slides.push({
             bookId,
             slideIndex: globalSlideIndex++,
             chapter: parsedChapter.index,
-            words: this.countWords(slideText),
-            text: slideText,
+            words: this.countWords(slide.text),
+            text: slide.text,
+            content: slide,
           })
         }
 

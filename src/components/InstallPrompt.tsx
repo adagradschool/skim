@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
 import { X, Download } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+
+// On Android browsers the useful install is the native app (it owns the
+// volume rocker); the PWA can never see hardware buttons.
+const ANDROID_APK_URL = 'https://github.com/adagradschool/skim/releases/latest/download/skim-android-debug.apk'
+const isAndroidBrowser =
+  typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent) && !Capacitor.isNativePlatform()
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -19,6 +26,16 @@ export function InstallPrompt() {
     if (testMode) {
       console.log('[InstallPrompt] Test mode enabled - showing prompt')
       setTimeout(() => setShowPrompt(true), 3000)
+      return
+    }
+
+    // Android browser: offer the native app instead of the PWA
+    if (isAndroidBrowser) {
+      const dismissedAt = Number(localStorage.getItem('pwa-install-dismissed') ?? 0)
+      if (Date.now() - dismissedAt > 7 * 24 * 60 * 60 * 1000) {
+        const t = setTimeout(() => setShowPrompt(true), 3000)
+        return () => clearTimeout(t)
+      }
       return
     }
 
@@ -69,6 +86,11 @@ export function InstallPrompt() {
   }, [])
 
   const handleInstallClick = async () => {
+    if (isAndroidBrowser) {
+      window.location.href = ANDROID_APK_URL
+      setShowPrompt(false)
+      return
+    }
     if (!deferredPrompt) {
       console.log('[InstallPrompt] No deferred prompt available (test mode or not supported)')
       alert('Install prompt test - In production, this would trigger the browser install dialog')
@@ -100,7 +122,7 @@ export function InstallPrompt() {
   }
 
   // Don't show if already installed or no prompt available
-  if (isInstalled || !showPrompt || !deferredPrompt) {
+  if (isInstalled || !showPrompt || (!deferredPrompt && !isAndroidBrowser)) {
     return null
   }
 
@@ -112,9 +134,11 @@ export function InstallPrompt() {
             <Download className="h-6 w-6 text-black" strokeWidth={2.5} />
           </div>
           <div className="flex-1">
-            <h3 className="text-base font-extrabold">Install Skim</h3>
+            <h3 className="text-base font-extrabold">{isAndroidBrowser ? 'Get the Android app' : 'Install Skim'}</h3>
             <p className="mt-1 text-sm text-fg-muted dark:text-fg-muted-dark">
-              Install the app for a better reading experience and offline access.
+              {isAndroidBrowser
+                ? 'Volume buttons turn pages, and it works offline.'
+                : 'Install the app for a better reading experience and offline access.'}
             </p>
           </div>
           <button
@@ -139,7 +163,7 @@ export function InstallPrompt() {
             onClick={handleInstallClick}
             className="nb-btn nb-btn-main flex-1 px-4 py-2 text-sm"
           >
-            Install
+            {isAndroidBrowser ? 'Download' : 'Install'}
           </button>
         </div>
       </div>

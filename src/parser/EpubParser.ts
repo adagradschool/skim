@@ -2,6 +2,8 @@ import ePub, { Book } from 'epubjs'
 import DOMPurify from 'dompurify'
 import type { ChapterText, ParseResult, ParseProgress } from './types'
 import type { IFormatParser } from './IFormatParser'
+import { blocksToText, extractBlocks } from './htmlBlocks'
+import type { Block } from '@/chunker/types'
 
 /**
  * EpubParser - Extract and normalize text from EPUB files
@@ -186,9 +188,10 @@ export class EpubParser implements IFormatParser {
           continue
         }
 
-        // Get inner HTML and extract text
+        // Get inner HTML and extract structured blocks + plain text
         const html = bodyElement.innerHTML
-        const text = this.extractTextFromHtml(html)
+        const blocks = this.extractBlocksFromHtml(html)
+        const text = blocksToText(blocks)
 
         // Get chapter title from heading or use section label
         const title = this.extractTitle(doc) || item.idref || `Chapter ${i + 1}`
@@ -198,6 +201,7 @@ export class EpubParser implements IFormatParser {
           title,
           text,
           href: item.href,
+          blocks,
         })
 
         // Unload section to free memory
@@ -255,45 +259,26 @@ export class EpubParser implements IFormatParser {
   }
 
   /**
-   * Extract visible text from HTML, preserving paragraph breaks
+   * Sanitize chapter HTML and extract structured blocks (headings,
+   * paragraphs, quotes, list items) with inline emphasis preserved.
    */
-  private extractTextFromHtml(html: string): string {
-    // Sanitize HTML to remove scripts, styles, etc.
+  private extractBlocksFromHtml(html: string): Block[] {
     const clean = DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p', 'div', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'li', 'ul', 'ol'],
+      ALLOWED_TAGS: [
+        'p', 'div', 'br', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'li', 'ul', 'ol',
+        'section', 'article', 'aside', 'header', 'footer', 'figure', 'figcaption', 'pre',
+        'table', 'tr', 'td', 'th', 'dl', 'dd', 'dt', 'nav', 'main',
+        'em', 'i', 'strong', 'b', 'sup', 'sub', 'span', 'a', 'cite', 'dfn', 'var', 'small', 'q',
+      ],
+      ALLOWED_ATTR: ['start'],
       KEEP_CONTENT: true,
     })
 
-    // Create a temporary DOM element to parse
     const temp = document.createElement('div')
     temp.innerHTML = clean
-
-    // Remove script and style elements
     temp.querySelectorAll('script, style').forEach((el) => el.remove())
 
-    // Extract text with paragraph preservation
-    const textParts: string[] = []
-
-    // Process block-level elements
-    const blockElements = temp.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, blockquote, li')
-
-    if (blockElements.length > 0) {
-      blockElements.forEach((el) => {
-        const text = el.textContent?.trim()
-        if (text) {
-          textParts.push(text)
-        }
-      })
-    } else {
-      // Fallback: just get all text if no block elements
-      const text = temp.textContent?.trim()
-      if (text) {
-        textParts.push(text)
-      }
-    }
-
-    // Join with double newlines to preserve paragraph breaks
-    return textParts.join('\n\n')
+    return extractBlocks(temp)
   }
 
   /**

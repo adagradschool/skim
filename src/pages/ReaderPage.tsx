@@ -14,6 +14,7 @@ import {
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 import { useTheme } from '@/hooks/useTheme'
 import { useHardwareNav, isNativeApp } from '@/hooks/useHardwareNav'
+import type { Run, SlideBlock, SlideContent } from '@/chunker/types'
 
 interface ReaderPageProps {
   bookId: string
@@ -590,21 +591,18 @@ export function ReaderPage({
           className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-y-auto overscroll-contain"
           style={{ touchAction: 'pan-y' }}
         >
-          <p
-            className="my-auto w-full"
-            style={{
-              fontSize: `${fontSize}rem`,
-              lineHeight: 1.5,
-              fontFamily:
-                selectedFont === 'inter'
-                  ? 'Inter, sans-serif'
-                  : selectedFont === 'literata'
-                    ? 'Literata, serif'
-                    : 'Merriweather, serif',
-            }}
-          >
-            {currentSlideText}
-          </p>
+          <SlideView
+            content={slides[currentSlideIndex]?.content}
+            text={currentSlideText}
+            fontSize={fontSize}
+            fontFamily={
+              selectedFont === 'inter'
+                ? 'Inter, sans-serif'
+                : selectedFont === 'literata'
+                  ? 'Literata, serif'
+                  : 'Merriweather, serif'
+            }
+          />
         </div>
         <div className="mx-auto w-full max-w-2xl pt-3 text-center text-[11px] font-bold tabular-nums tracking-widest text-fg/40 dark:text-fg-dark/40">
           {Math.round(currentProgress)}%
@@ -764,7 +762,7 @@ export function ReaderPage({
                 />
               </div>
               <p className="mt-2 text-xs font-semibold leading-snug text-fg-muted dark:text-fg-muted-dark">
-                Volume up = next slide, volume down = previous.
+                Volume down = next slide, volume up = previous.
               </p>
             </div>
 
@@ -953,6 +951,103 @@ function Toggle({ checked, onChange }: ToggleProps) {
         }`}
       />
     </button>
+  )
+}
+
+interface SlideViewProps {
+  content?: SlideContent
+  text: string
+  fontSize: number
+  fontFamily: string
+}
+
+function renderRuns(runs: Run[], skipChars = 0): React.ReactNode[] {
+  let remaining = skipChars
+  return runs.map((run, i) => {
+    let text = run.text
+    if (remaining > 0) {
+      const take = Math.min(remaining, text.length)
+      text = text.slice(take)
+      remaining -= take
+      if (text.length === 0) return null
+    }
+    let node: React.ReactNode = text
+    if (run.sup) node = <sup className="text-[0.65em]">{node}</sup>
+    if (run.b) node = <strong className="font-bold">{node}</strong>
+    if (run.i) node = <em>{node}</em>
+    return <span key={i}>{node}</span>
+  })
+}
+
+function SlideBlockView({ block, first }: { block: SlideBlock; first: boolean }) {
+  const spacing = first ? '' : 'mt-[0.55em]'
+
+  if (block.type === 'heading') {
+    const level = block.level ?? 1
+    const size = level <= 1 ? 'text-[1.9em]' : level === 2 ? 'text-[1.5em]' : 'text-[1.2em]'
+    return (
+      <div className={`${spacing} py-[0.5em]`}>
+        <div className="mb-[0.6em] h-[3px] w-16 bg-fg dark:bg-fg-dark" />
+        <h2 className={`font-display ${size} leading-[1.15] tracking-tight`}>{renderRuns(block.runs)}</h2>
+      </div>
+    )
+  }
+
+  if (block.type === 'quote') {
+    return (
+      <blockquote className={`${spacing} border-l-4 border-fg/60 pl-[0.9em] italic dark:border-fg-dark/60`}>
+        {renderRuns(block.runs)}
+      </blockquote>
+    )
+  }
+
+  if (block.type === 'list') {
+    return (
+      <p className={`${spacing} flex gap-[0.6em]`}>
+        <span className="w-[1.6em] shrink-0 text-right tabular-nums">{block.marker ?? '•'}</span>
+        <span className="min-w-0 flex-1">{renderRuns(block.runs)}</span>
+      </p>
+    )
+  }
+
+  // paragraph
+  const firstRun = block.runs[0]
+  const firstChar = firstRun?.text.charAt(0) ?? ''
+  const useDropCap = !!block.dropCap && /\p{L}/u.test(firstChar)
+  const indent = block.continued || useDropCap ? '' : 'indent-[1.4em]'
+
+  return (
+    <p className={`${spacing} ${indent}`}>
+      {useDropCap ? (
+        <span
+          className="float-left mr-[0.12em] font-display text-[3.1em] leading-[0.78] pt-[0.06em]"
+          aria-hidden="true"
+        >
+          {firstChar}
+        </span>
+      ) : null}
+      {useDropCap ? renderRuns(block.runs, 1) : renderRuns(block.runs)}
+    </p>
+  )
+}
+
+function SlideView({ content, text, fontSize, fontFamily }: SlideViewProps) {
+  const style = { fontSize: `${fontSize}rem`, lineHeight: 1.5, fontFamily, hyphens: 'auto' as const }
+
+  if (!content || content.blocks.length === 0) {
+    return (
+      <p className="my-auto w-full" style={style}>
+        {text}
+      </p>
+    )
+  }
+
+  return (
+    <div className="my-auto w-full" style={style} lang="en">
+      {content.blocks.map((block, i) => (
+        <SlideBlockView key={i} block={block} first={i === 0} />
+      ))}
+    </div>
   )
 }
 

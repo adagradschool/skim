@@ -91,11 +91,12 @@ export function useHardwareNav({ enabled, onNext, onPrevious, title }: HardwareN
   useEffect(() => {
     if (!enabled) return
 
+    // Volume down (the lower button, under the thumb) = next; volume up = previous.
     const handleKey = (event: KeyboardEvent) => {
-      if (isVolumeUpEvent(event)) {
+      if (isVolumeDownEvent(event)) {
         event.preventDefault()
         nextRef.current()
-      } else if (isVolumeDownEvent(event)) {
+      } else if (isVolumeUpEvent(event)) {
         event.preventDefault()
         prevRef.current()
       }
@@ -140,7 +141,7 @@ export function useHardwareNav({ enabled, onNext, onPrevious, title }: HardwareN
       try {
         session.metadata = new MediaMetadata({
           title: title || 'Skim',
-          artist: 'Volume buttons turn pages',
+          artist: 'Volume down = next, up = previous',
         })
         session.setActionHandler('nexttrack', () => nextRef.current())
         session.setActionHandler('previoustrack', () => prevRef.current())

@@ -1,3 +1,5 @@
+import type { SlideContent } from '@/chunker/types'
+
 // Type definitions for database entities
 
 export interface Book {
@@ -30,6 +32,8 @@ export interface Slide {
   chapter: number
   words: number
   text: string
+  /** Structured content for rendering. Older imports only have text. */
+  content?: SlideContent
 }
 
 export interface Progress {
