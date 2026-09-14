@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 import { useTheme } from '@/hooks/useTheme'
-import { useHardwareNav } from '@/hooks/useHardwareNav'
+import { useHardwareNav, isNativeApp } from '@/hooks/useHardwareNav'
 
 interface ReaderPageProps {
   bookId: string
@@ -143,9 +143,11 @@ export function ReaderPage({
           await storageService.getKV('autoAdvanceEnabled')
         setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
 
+        // Default on in the Android app (the rocker is captured natively);
+        // off in browsers, where it can only reach headset/remote buttons.
         const hardwareNavSetting =
           await storageService.getKV('hardwareNavEnabled')
-        setIsHardwareNavEnabled(hardwareNavSetting ?? false)
+        setIsHardwareNavEnabled(hardwareNavSetting ?? isNativeApp)
 
         const savedFont = await storageService.getKV('selectedFont')
         if (
@@ -574,10 +576,10 @@ export function ReaderPage({
       </div>
 
       {/* Main slide content */}
-      <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-6 py-20">
-        <div className="nb-box-lg flex w-full max-w-2xl flex-1 items-center overflow-hidden px-6 py-8 sm:px-10">
+      <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-7 pb-14 pt-16 sm:px-10">
+        <div className="flex w-full max-w-2xl flex-1 items-center overflow-hidden">
           <p
-            className="w-full text-xl font-medium leading-relaxed sm:text-2xl sm:leading-relaxed"
+            className="w-full text-[1.45rem] leading-[1.5] tracking-[-0.005em] sm:text-[1.75rem] sm:leading-[1.45]"
             style={{
               fontFamily:
                 selectedFont === 'inter'
@@ -759,10 +761,7 @@ export function ReaderPage({
                 />
               </div>
               <p className="mt-2 text-xs font-semibold leading-snug text-fg-muted dark:text-fg-muted-dark">
-                Up = next, down = previous. In the Skim Android app the rocker
-                is captured directly. In a browser, Chrome on Android and iOS
-                Safari keep the rocker for themselves, so there this only reaches
-                headset and Bluetooth page-turner buttons via a silent media session.
+                Volume up = next slide, volume down = previous.
               </p>
             </div>
 

@@ -26,6 +26,7 @@ interface VolumeButtonsPlugin {
 
 const VolumeButtons = registerPlugin<VolumeButtonsPlugin>('VolumeButtons')
 const isNative = Capacitor.isNativePlatform()
+export const isNativeApp = isNative
 
 const VOLUME_UP_KEYS = new Set(['AudioVolumeUp', 'VolumeUp'])
 const VOLUME_DOWN_KEYS = new Set(['AudioVolumeDown', 'VolumeDown'])
