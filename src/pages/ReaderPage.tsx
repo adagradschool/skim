@@ -22,6 +22,9 @@ interface ReaderPageProps {
 }
 
 const ICON_STROKE = 2.5
+const DEFAULT_FONT_SIZE = 1.15 // rem
+const MIN_FONT_SIZE = 0.85
+const MAX_FONT_SIZE = 2
 
 export function ReaderPage({
   bookId,
@@ -50,6 +53,7 @@ export function ReaderPage({
   >('literata')
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAddBookmark, setShowAddBookmark] = useState(false)
+  const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE)
   const { theme, toggleTheme } = useTheme()
 
   // Reading time estimation
@@ -155,6 +159,11 @@ export function ReaderPage({
           ['inter', 'literata', 'merriweather'].includes(savedFont)
         ) {
           setSelectedFont(savedFont as 'inter' | 'literata' | 'merriweather')
+        }
+
+        const savedSize = Number(await storageService.getKV('fontSize'))
+        if (Number.isFinite(savedSize) && savedSize >= MIN_FONT_SIZE && savedSize <= MAX_FONT_SIZE) {
+          setFontSize(savedSize)
         }
 
         // Get progress
@@ -576,11 +585,16 @@ export function ReaderPage({
       </div>
 
       {/* Main slide content */}
-      <main className="flex flex-1 flex-col items-center justify-center overflow-hidden px-7 pb-14 pt-16 sm:px-10">
-        <div className="flex w-full max-w-2xl flex-1 items-center overflow-hidden">
+      <main className="flex min-h-0 flex-1 flex-col px-6 pb-4 pt-16 sm:px-10">
+        <div
+          className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-y-auto overscroll-contain"
+          style={{ touchAction: 'pan-y' }}
+        >
           <p
-            className="w-full text-[1.45rem] leading-[1.5] tracking-[-0.005em] sm:text-[1.75rem] sm:leading-[1.45]"
+            className="my-auto w-full"
             style={{
+              fontSize: `${fontSize}rem`,
+              lineHeight: 1.5,
               fontFamily:
                 selectedFont === 'inter'
                   ? 'Inter, sans-serif'
@@ -592,11 +606,18 @@ export function ReaderPage({
             {currentSlideText}
           </p>
         </div>
-        {bookTitle && (
-          <div className="w-full max-w-2xl pt-4">
-            <span className="nb-chip bg-surface dark:bg-surface-dark">{bookTitle}</span>
-          </div>
-        )}
+        <div className="mx-auto flex w-full max-w-2xl items-center gap-3 pt-4">
+          {bookTitle ? (
+            <span className="nb-chip block min-w-0 flex-1 truncate bg-surface dark:bg-surface-dark">
+              {bookTitle}
+            </span>
+          ) : (
+            <span className="flex-1" />
+          )}
+          {showControls && (
+            <span className="nb-chip shrink-0 bg-lime text-black">{Math.round(currentProgress)}%</span>
+          )}
+        </div>
       </main>
 
       {/* Top bar with back button, index, and settings */}
@@ -645,15 +666,6 @@ export function ReaderPage({
             </button>
           </div>
         </>
-      )}
-
-      {/* Footer with progress percentage */}
-      {showControls && (
-        <footer className="absolute bottom-0 left-0 right-0 z-10 px-6 pb-6">
-          <div className="mx-auto flex max-w-2xl items-center justify-center">
-            <span className="nb-chip bg-lime text-black">{Math.round(currentProgress)}% complete</span>
-          </div>
-        </footer>
       )}
 
       {/* Chapter Index panel */}
@@ -825,6 +837,33 @@ export function ReaderPage({
                     </span>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Text size */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between">
+                <label htmlFor="font-size" className="text-sm font-bold">Text size</label>
+                <span className="nb-chip bg-surface dark:bg-surface-dark">{Math.round((fontSize / DEFAULT_FONT_SIZE) * 100)}%</span>
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <span className="text-xs font-bold">A</span>
+                <input
+                  id="font-size"
+                  type="range"
+                  min={MIN_FONT_SIZE}
+                  max={MAX_FONT_SIZE}
+                  step={0.05}
+                  value={fontSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value)
+                    setFontSize(next)
+                    void storageService.setKV('fontSize', next)
+                  }}
+                  className="nb-range flex-1"
+                  aria-label="Text size"
+                />
+                <span className="text-xl font-bold">A</span>
               </div>
             </div>
 

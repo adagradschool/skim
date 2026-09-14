@@ -258,6 +258,20 @@
     animation: var(--animate-pop);
   }
 
+  .nb-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 12px;
+    border-radius: var(--radius-nb);
+    border: 2px solid #000;
+    background: var(--color-surface-muted);
+    box-shadow: var(--shadow-nb-sm);
+  }
+
+  .dark .nb-range {
+    background: var(--color-surface-muted-dark);
+  }
+
   .nb-track {
     @apply relative h-3 overflow-hidden rounded-nb border-2 border-border bg-surface dark:bg-surface-muted-dark;
   }
