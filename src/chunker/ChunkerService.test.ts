@@ -72,6 +72,60 @@ describe('ChunkerService - plain text', () => {
   })
 })
 
+describe('ChunkerService - sentence splitting never drops text (regression)', () => {
+  // Bug: a terminator glued to a closing quote, footnote number or bracket
+  // ("ourselves.”", "fail.3", "milestones.)") made the sentence regex skip
+  // everything up to the lone closing character. Seen in The Lean Startup.
+  const chunker = new ChunkerService(80)
+
+  const cases: Array<[string, string]> = [
+    ['closing quote', 'He said, “We are making progress, not deluding ourselves. It is also the right way to think about productivity.”'],
+    ['footnote number', 'Today, Wealthfront is prospering as a result of its pivot.3 It recently added new features. Nothing was lost.'],
+    ['closing paren', 'Consider the recommendation (build cross-functional teams and hold them accountable.) Then move on to the next idea.'],
+    ['quote then footnote', 'She responds, “What’s that?”8 We had our engineers join for many of these sessions.'],
+    ['decimals and percentages', 'COMPOUNDING GROWTH RATE Six months ago 0.1% 9.8% Five months ago 0.5% 9.6% Four months ago 2.0% 9.9%'],
+    ['url with trailing period', 'Dave has an excellent blog as well: http://blog.500startups.com/. His presentation laid out a framework.'],
+    ['ellipsis and mixed terminators', 'Wait... what?! Really?” he asked. “Yes.” And that was that.'],
+    ['single quote close', 'It was called ‘validated learning.’ The name stuck.'],
+  ]
+
+  for (const [name, text] of cases) {
+    test(`keeps every word: ${name}`, () => {
+      const out = chunker.chunkText(text)
+      expect(words(out.join(' '))).toEqual(words(text))
+      out.forEach((s) => expect(s.length).toBeLessThanOrEqual(Math.floor(80 * 1.15)))
+    })
+  }
+
+  test('sentence spans cover the input exactly', async () => {
+    const { sentenceSpans } = await import('./ChunkerService')
+    for (const [, text] of cases) {
+      const spans = sentenceSpans(text)
+      // Rebuild by joining spans with the original gaps.
+      let rebuilt = ''
+      let cursor = 0
+      for (const sp of spans) {
+        expect(sp.start).toBeGreaterThanOrEqual(cursor)
+        rebuilt += text.slice(cursor, sp.start) + text.slice(sp.start, sp.end)
+        cursor = sp.end
+      }
+      rebuilt += text.slice(cursor)
+      expect(rebuilt).toBe(text)
+      // Only whitespace may live between spans.
+      for (let i = 1; i < spans.length; i++) {
+        expect(text.slice(spans[i - 1]!.end, spans[i]!.start).trim()).toBe('')
+      }
+    }
+  })
+
+  test('a paragraph that is one long quote still splits into sentences', () => {
+    const text = '“' + Array.from({ length: 6 }, (_, i) => `Sentence number ${i + 1} is here.`).join(' ') + '”'
+    const out = chunker.chunkText(text)
+    expect(out.length).toBeGreaterThan(1)
+    expect(words(out.join(' '))).toEqual(words(text))
+  })
+})
+
 describe('ChunkerService - structured blocks', () => {
   const MAX = 40
   const chunker = new ChunkerService(MAX)

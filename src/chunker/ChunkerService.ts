@@ -215,22 +215,34 @@ function pieceEnd(piece: SlideBlock, pieceStart: number): number | undefined {
   return len === 0 ? undefined : pieceStart + len
 }
 
-/** Sentence spans: terminator-delimited, trimmed. A trailing fragment is a sentence too. */
-function sentenceSpans(text: string): Span[] {
+/**
+ * Sentence spans, trimmed, covering the whole text.
+ *
+ * A sentence ends at a run of terminators (. ! ?) optionally followed by
+ * closing quotes/brackets, when whitespace or end of text follows. Text is
+ * split at those boundaries only, so a terminator glued to something else
+ * ("fail.3", "1.5%", "example.com/", "said.”") never causes a skip: the
+ * sentence simply continues to the next real boundary. The remainder after
+ * the last boundary is a sentence too. Invariant: concatenating the spans
+ * (with the whitespace between them) reproduces the input exactly.
+ */
+export function sentenceSpans(text: string): Span[] {
   const spans: Span[] = []
-  const re = /[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g
+  const boundary = /[.!?]+[”’"')\]]*(?=\s|$)/g
+  let start = 0
   let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
+  while ((m = boundary.exec(text)) !== null) {
+    const end = m.index + m[0].length
     if (m[0].length === 0) {
-      re.lastIndex++
+      boundary.lastIndex++
       continue
     }
-    const span = trimSpan(text, m.index, m.index + m[0].length)
+    const span = trimSpan(text, start, end)
     if (span.end > span.start) spans.push(span)
+    start = end
   }
-  if (spans.length === 0 && text.trim().length > 0) {
-    spans.push(trimSpan(text, 0, text.length))
-  }
+  const tail = trimSpan(text, start, text.length)
+  if (tail.end > tail.start) spans.push(tail)
   return spans
 }
 
