@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420">
+<rect width="300" height="420" fill="#dfe5f2"/><rect x="24" y="24" width="268" height="388" rx="6" fill="#000"/><rect x="16" y="16" width="268" height="388" rx="6" fill="#fff" stroke="#000" stroke-width="6"/>
+<path d="M55 145l95-83 95 83M72 147l78-55 78 55M92 148l58-29 58 29" fill="none" stroke="#88aaee" stroke-width="8"/>
+<path d="M36 180q28-18 56 0t56 0 56 0 56 0 56 0v81H36z" fill="#18345f" stroke="#000" stroke-width="6"/><path d="M36 215q28-18 56 0t56 0 56 0 56 0 56 0M36 250q28-18 56 0t56 0 56 0 56 0 56 0" fill="none" stroke="#88aaee" stroke-width="7"/>
+<path d="M150 86v130M135 216h30" stroke="#000" stroke-width="7"/><circle cx="150" cy="86" r="17" fill="#a3e636" stroke="#000" stroke-width="6"/><path d="M150 69V43" stroke="#000" stroke-width="6"/>
+<text x="36" y="306" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="29">THE GREAT</text><text x="36" y="339" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="35">GATSBY</text><text x="38" y="374" font-family="DM Sans, Arial, sans-serif" font-weight="700" font-size="15">F. SCOTT FITZGERALD</text>
+</svg>

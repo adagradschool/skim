@@ -2,6 +2,7 @@ import { parserService } from '@/parser/ParserService'
 import { formatDetector } from '@/parser' // Import from index to ensure parsers are registered
 import { storageService } from '@/db/StorageService'
 import { chunkerService } from '@/chunker/ChunkerService'
+import { gamification } from '@/gamification/score'
 import type { Book, Slide, Chapter } from '@/db/types'
 import type { ParseProgress } from '@/parser/types'
 
@@ -121,6 +122,7 @@ export class ImportService {
 
       onProgress?.({ stage: 'complete', message: 'Import complete' })
 
+      void gamification.record('book_added', { bookId }).catch(() => {})
       return bookId
     } catch (error) {
       if (this.isAbortError(error)) {

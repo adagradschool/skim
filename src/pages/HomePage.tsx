@@ -15,6 +15,8 @@ import { importService, type ImportProgressUpdate } from '@/importer/ImportServi
 import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark, Sun, Moon } from 'lucide-react'
 import { ReaderPage } from '@/pages/ReaderPage'
 import { useTheme } from '@/hooks/useTheme'
+import { gamification, levelFor, weekMinutes, todayStats, EVENT_LABELS, POINTS, emptyState, type ReaderProfile, type ScoreState, type ScoreEvent } from '@/gamification/score'
+import { ReaderCard } from '@/components/ReaderCard'
 
 interface LibraryEntry {
   id: string
@@ -50,6 +52,20 @@ export function HomePage() {
   const [deleteBookId, setDeleteBookId] = useState<string | null>(null)
   const [readingBookId, setReadingBookId] = useState<string | null>(null)
   const [showBookmarksOnOpen, setShowBookmarksOnOpen] = useState(false)
+  const [score, setScore] = useState<ScoreState>(emptyState())
+  const [profile, setProfile] = useState<ReaderProfile | null>(null)
+  const [showCard, setShowCard] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    gamification.getState().then((s) => alive && setScore(s))
+    gamification.getProfile().then((p) => alive && setProfile(p))
+    const unsub = gamification.subscribe((s) => alive && setScore(s))
+    return () => {
+      alive = false
+      unsub()
+    }
+  }, [readingBookId])
 
   const coverUrlsRef = useRef<string[]>([])
 
@@ -148,14 +164,24 @@ export function HomePage() {
           <h1 className="mt-3 font-display text-3xl uppercase leading-none tracking-tight">Your Library</h1>
           <p className="mt-2 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">Pick up where you left off or start something new.</p>
         </div>
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          className="nb-icon-btn nb-btn-neutral shrink-0"
-        >
-          {theme === 'dark' ? <Sun className="h-5 w-5" strokeWidth={2.5} /> : <Moon className="h-5 w-5" strokeWidth={2.5} />}
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-3">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            className="nb-icon-btn nb-btn-neutral"
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" strokeWidth={2.5} /> : <Moon className="h-5 w-5" strokeWidth={2.5} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCard(true)}
+            aria-label="Reader card and score"
+            className="nb-btn nb-btn-yellow px-3 py-1.5 text-xs uppercase tracking-wider"
+          >
+            {levelFor(score.points).name} · {score.points.toLocaleString()}
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 px-6 pb-24">
@@ -205,6 +231,10 @@ export function HomePage() {
             handleCloseUpload()
           }}
         />
+      ) : null}
+
+      {showCard ? (
+        <ScoreSheet score={score} profile={profile} onClose={() => setShowCard(false)} />
       ) : null}
 
       {deleteBookId ? (
@@ -681,6 +711,94 @@ function EmptyLibrary({ onUpload }: { onUpload: () => void }) {
       >
         Add a book
       </button>
+    </div>
+  )
+}
+
+interface ScoreSheetProps {
+  score: ScoreState
+  profile: ReaderProfile | null
+  onClose: () => void
+}
+
+function ScoreSheet({ score, profile, onClose }: ScoreSheetProps) {
+  const level = levelFor(score.points)
+  const week = weekMinutes(score)
+  const today = todayStats(score)
+  const maxMin = Math.max(1, ...week)
+  const events: ScoreEvent[] = ['slide_read', 'chapter_done', 'book_done', 'note_saved', 'book_added', 'goal_hit']
+
+  return (
+    <div
+      className="nb-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="nb-modal flex max-h-[88vh] max-w-md flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-5">
+          {profile ? (
+            <div className="[container-type:inline-size]">
+              <ReaderCard profile={profile} points={score.points} booksFinished={score.finishedBooks.length} />
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex items-end justify-between">
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-widest text-fg-muted dark:text-fg-muted-dark">Level</div>
+              <div className="font-display text-2xl">{level.name}</div>
+            </div>
+            <div className="text-right">
+              <div className="font-display text-2xl tabular-nums">{score.points.toLocaleString()}</div>
+              <div className="text-xs font-extrabold uppercase tracking-widest text-fg-muted dark:text-fg-muted-dark">
+                {level.next ? `${(level.next - score.points).toLocaleString()} to next` : 'top level'}
+              </div>
+            </div>
+          </div>
+          <div className="nb-track mt-2">
+            <div className="nb-track-fill" style={{ width: `${level.progress * 100}%` }} />
+          </div>
+
+          <div className="mt-5 flex items-end justify-between">
+            <div className="text-xs font-extrabold uppercase tracking-widest text-fg-muted dark:text-fg-muted-dark">This week</div>
+            <div className="text-xs font-bold">
+              Today {Math.round(today.seconds / 60)} min{profile ? ` of ${profile.targetMinutes}` : ''}
+              {today.goalHit ? ' · target hit' : ''}
+            </div>
+          </div>
+          <div className="mt-2 flex h-16 items-end gap-1.5">
+            {week.map((m, i) => (
+              <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                <div
+                  className={`w-full rounded-nb border-2 border-border ${i === 6 ? 'bg-main dark:bg-main-dark' : 'bg-surface-muted dark:bg-surface-muted-dark'}`}
+                  style={{ height: `${Math.max(8, (m / maxMin) * 100)}%` }}
+                  title={`${m} min`}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 text-xs font-extrabold uppercase tracking-widest text-fg-muted dark:text-fg-muted-dark">How points work</div>
+          <ul className="mt-2 divide-y-2 divide-border border-2 border-border rounded-nb">
+            {events.map((e) => (
+              <li key={e} className="flex items-center justify-between px-3 py-2 text-sm font-semibold">
+                <span>{EVENT_LABELS[e]}</span>
+                <span className="flex items-center gap-3">
+                  <span className="text-xs text-fg-muted dark:text-fg-muted-dark">×{score.counts[e].toLocaleString()}</span>
+                  <span className="nb-chip bg-lime text-black">+{POINTS[e]}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="border-t-2 border-border p-4">
+          <button type="button" className="nb-btn nb-btn-main w-full px-4 py-2.5 text-sm" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

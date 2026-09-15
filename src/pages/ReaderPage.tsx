@@ -15,6 +15,7 @@ import { ReadingTimeEstimator } from '@/utils/ReadingTimeEstimator'
 import { useTheme } from '@/hooks/useTheme'
 import { useHardwareNav, isNativeApp } from '@/hooks/useHardwareNav'
 import type { Run, SlideBlock, SlideContent } from '@/chunker/types'
+import { gamification, levelFor } from '@/gamification/score'
 
 interface ReaderPageProps {
   bookId: string
@@ -55,6 +56,7 @@ export function ReaderPage({
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAddBookmark, setShowAddBookmark] = useState(false)
   const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE)
+  const [finished, setFinished] = useState<{ points: number; total: number; level: string } | null>(null)
   const { theme, toggleTheme } = useTheme()
 
   // Reading time estimation
@@ -244,6 +246,7 @@ export function ReaderPage({
       const timeSpent = (Date.now() - slideEntryTime.current) / 1000
       const currentWords = slides[currentSlideIndex]?.words ?? 0
       readingEstimator.current.addObservation(timeSpent, currentWords)
+      void gamification.addReadingTime(timeSpent).catch(() => {})
     }
     slideEntryTime.current = Date.now()
 
@@ -252,6 +255,23 @@ export function ReaderPage({
       const newIndex = currentSlideIndex + 1
       setCurrentSlideIndex(newIndex)
       await storageService.setProgress(bookId, newIndex)
+
+      void gamification.record('slide_read').catch(() => {})
+      const from = slides[currentSlideIndex]?.chapter
+      const to = slides[newIndex]?.chapter
+      if (from !== undefined && to !== undefined && to !== from) {
+        void gamification.record('chapter_done', { bookId }).catch(() => {})
+      }
+    } else {
+      // Last slide: finishing the book
+      try {
+        const res = await gamification.record('book_done', { bookId })
+        if (res.awarded > 0) {
+          setFinished({ points: res.awarded, total: res.state.points, level: levelFor(res.state.points).name })
+        }
+      } catch {
+        /* ignore */
+      }
     }
   }, [slides, currentSlideIndex, bookId, resetInactivityTimer])
 
@@ -896,6 +916,9 @@ export function ReaderPage({
               annotation,
               snippet: currentSlideText.substring(0, 200),
             })
+            if (annotation.trim().length > 0 && !currentSlideBookmark) {
+              void gamification.record('note_saved', { bookId }).catch(() => {})
+            }
             setShowAddBookmark(false)
             await loadBookmarks()
           }}
@@ -903,6 +926,43 @@ export function ReaderPage({
             setShowAddBookmark(false)
           }}
         />
+      ) : null}
+
+      {/* Finished-book sticker */}
+      {finished ? (
+        <div
+          className="nb-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFinished(null)
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="nb-modal max-w-sm rotate-[-2deg] p-6 text-center">
+            <div className="nb-box-lg mx-auto inline-flex rotate-[3deg] bg-lime px-5 py-3 font-display text-3xl uppercase text-black">
+              Finished!
+            </div>
+            <h2 className="mt-6 text-xl font-extrabold">{bookTitle}</h2>
+            <p className="mt-2 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">
+              +{finished.points} points · {finished.total.toLocaleString()} total · {finished.level}
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button type="button" className="nb-btn nb-btn-neutral flex-1 px-4 py-2.5 text-sm" onClick={() => setFinished(null)}>
+                Stay
+              </button>
+              <button
+                type="button"
+                className="nb-btn nb-btn-main flex-1 px-4 py-2.5 text-sm"
+                onClick={() => {
+                  setFinished(null)
+                  onExit()
+                }}
+              >
+                Next book
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {/* Bookmarks Panel */}

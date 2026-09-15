@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420">
+<rect width="300" height="420" fill="#dfe5f2"/><rect x="24" y="24" width="268" height="388" rx="6" fill="#000"/><rect x="16" y="16" width="268" height="388" rx="6" fill="#fff" stroke="#000" stroke-width="6"/>
+<circle cx="205" cy="108" r="34" fill="#ffdc58" stroke="#000" stroke-width="6"/><path d="M205 52v-18M205 164v18M149 108h-18M261 108h18" stroke="#000" stroke-width="6"/><path d="M81 217h138M94 198h112l-10-30H104zM106 217v57M142 217v57M178 217v57M214 217v57M91 287h132" fill="#88aaee" stroke="#000" stroke-width="6"/><path d="M62 155h35v18H62z" fill="#a3e636" stroke="#000" stroke-width="5"/>
+<text x="35" y="329" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="27">MEDITATIONS</text><text x="38" y="373" font-family="DM Sans, Arial, sans-serif" font-weight="700" font-size="16">MARCUS AURELIUS</text>
+</svg>

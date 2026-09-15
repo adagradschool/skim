@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420">
+<rect width="300" height="420" fill="#dfe5f2"/><rect x="24" y="24" width="268" height="388" rx="6" fill="#000"/><rect x="16" y="16" width="268" height="388" rx="6" fill="#fff" stroke="#000" stroke-width="6"/>
+<path d="M112 157l-12-55 30 38M188 157l12-55-30 38" fill="#ff6b9d" stroke="#000" stroke-width="6"/><circle cx="150" cy="207" r="61" fill="#ffdc58" stroke="#000" stroke-width="6"/><circle cx="150" cy="207" r="44" fill="#fff" stroke="#000" stroke-width="5"/><path d="M150 207v-28M150 207l22 15M137 207h13" stroke="#000" stroke-width="6"/><path d="M105 207h-13M195 207h13" stroke="#000" stroke-width="5"/>
+<text x="35" y="305" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="28">ALICE'S</text><text x="35" y="337" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="25">ADVENTURES IN</text><text x="35" y="368" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="27">WONDERLAND</text><text x="38" y="394" font-family="DM Sans, Arial, sans-serif" font-weight="700" font-size="15">LEWIS CARROLL</text>
+</svg>

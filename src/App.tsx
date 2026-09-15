@@ -5,14 +5,27 @@ import { InstallPrompt } from '@/components/InstallPrompt'
 import { ReaderPage } from '@/pages/ReaderPage'
 import { storageService } from '@/db/StorageService'
 import { Loader2 } from 'lucide-react'
+import { Onboarding } from '@/onboarding/Onboarding'
 
 function App() {
   const [initialBookId, setInitialBookId] = useState<string | null | undefined>(undefined)
   const [isCheckingLastBook, setIsCheckingLastBook] = useState(true)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
 
   useEffect(() => {
     const checkLastOpenedBook = async () => {
       try {
+        const onboarded = await storageService.getKV('onboardingDone')
+        if (!onboarded) {
+          // Existing libraries skip onboarding; only a truly fresh install sees it.
+          const books = await storageService.getAllBooks()
+          if (books.length === 0) {
+            setNeedsOnboarding(true)
+          } else {
+            await storageService.setKV('onboardingDone', true)
+          }
+        }
+
         // Get the last opened book ID from storage
         const lastBookId = await storageService.getKV('lastOpenedBookId')
 
@@ -53,6 +66,19 @@ function App() {
           </div>
         </div>
         <InstallPrompt />
+      </KonstaApp>
+    )
+  }
+
+  if (needsOnboarding) {
+    return (
+      <KonstaApp theme="ios" safeAreas>
+        <Onboarding
+          onDone={async () => {
+            await storageService.setKV('onboardingDone', true)
+            setNeedsOnboarding(false)
+          }}
+        />
       </KonstaApp>
     )
   }

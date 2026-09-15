@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420">
+<rect width="300" height="420" fill="#dfe5f2"/><rect x="24" y="24" width="268" height="388" rx="6" fill="#000"/><rect x="16" y="16" width="268" height="388" rx="6" fill="#fff" stroke="#000" stroke-width="6"/>
+<path d="M36 219q45-31 89 0t89 0 50 0v69H36z" fill="#88aaee" stroke="#000" stroke-width="6"/><path d="M98 212l40-34 48 34v43H98z" fill="#fd9745" stroke="#000" stroke-width="6"/><path d="M137 178v77M98 212h88" stroke="#000" stroke-width="5"/><path d="M73 206l35-72 35 72M73 179h70M84 157h48" fill="#a3e636" stroke="#000" stroke-width="6"/><path d="M36 288h228" stroke="#000" stroke-width="6"/>
+<text x="36" y="330" font-family="Archivo Black, DM Sans, Arial Black, sans-serif" font-size="46">WALDEN</text><text x="38" y="373" font-family="DM Sans, Arial, sans-serif" font-weight="700" font-size="15">HENRY DAVID THOREAU</text>
+</svg>
