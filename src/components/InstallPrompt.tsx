@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X, Download } from 'lucide-react'
-import { Capacitor } from '@capacitor/core'
-
-// On Android browsers the useful install is the native app (it owns the
-// volume rocker); the PWA can never see hardware buttons.
-const ANDROID_APK_URL = 'https://github.com/adagradschool/skim/releases/latest/download/skim-android-debug.apk'
-const isAndroidBrowser =
-  typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent) && !Capacitor.isNativePlatform()
+import { ANDROID_APK_URL, NATIVE_APP_PITCH, isAndroidBrowser } from '@/platform'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -134,11 +128,9 @@ export function InstallPrompt() {
             <Download className="h-6 w-6 text-black" strokeWidth={2.5} />
           </div>
           <div className="flex-1">
-            <h3 className="text-base font-extrabold">{isAndroidBrowser ? 'Get the Android app' : 'Install Skim'}</h3>
+            <h3 className="text-base font-extrabold">{isAndroidBrowser ? NATIVE_APP_PITCH.title : 'Install Skim'}</h3>
             <p className="mt-1 text-sm text-fg-muted dark:text-fg-muted-dark">
-              {isAndroidBrowser
-                ? 'Volume buttons turn pages, and it works offline.'
-                : 'Install the app for a better reading experience and offline access.'}
+              {isAndroidBrowser ? NATIVE_APP_PITCH.body : 'Install the app for a better reading experience and offline access.'}
             </p>
           </div>
           <button
