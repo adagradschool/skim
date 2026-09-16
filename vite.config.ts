@@ -20,6 +20,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Skim - EPUB Reader',
@@ -31,6 +34,14 @@ export default defineConfig({
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        share_target: {
+          action: '/share-target',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            files: [{ name: 'file', accept: ['application/epub+zip', 'application/pdf', '.epub', '.pdf'] }],
+          },
+        },
         icons: [
           {
             src: '/icon-192.png',
@@ -62,30 +73,11 @@ export default defineConfig({
         enabled: true,
         type: 'module',
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
-        // Don't cache IndexedDB or large EPUB files
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            // Cache app shell and static assets
-            urlPattern: /^https?:\/\/[^/]+\/?$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'app-shell',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
-              },
-            },
-          },
-        ],
-        // Clean up old caches on activation
-        cleanupOutdatedCaches: true,
-        // Skip waiting and claim clients immediately
-        skipWaiting: true,
-        clientsClaim: true,
+        // Bundled books are fetched on demand, not precached
+        globIgnores: ['**/books/**'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],

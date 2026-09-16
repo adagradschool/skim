@@ -17,6 +17,7 @@ import { ReaderPage } from '@/pages/ReaderPage'
 import { useTheme } from '@/hooks/useTheme'
 import { gamification, levelFor, weekMinutes, todayStats, EVENT_LABELS, POINTS, emptyState, type ReaderProfile, type ScoreState, type ScoreEvent } from '@/gamification/score'
 import { ReaderCard } from '@/components/ReaderCard'
+import { LIBRARY_CHANGED_EVENT } from '@/shared/sharedFiles'
 
 interface LibraryEntry {
   id: string
@@ -122,7 +123,12 @@ export function HomePage() {
 
   useEffect(() => {
     refreshLibrary()
-    return () => revokeCoverUrls()
+    const onChanged = () => void refreshLibrary()
+    window.addEventListener(LIBRARY_CHANGED_EVENT, onChanged)
+    return () => {
+      window.removeEventListener(LIBRARY_CHANGED_EVENT, onChanged)
+      revokeCoverUrls()
+    }
   }, [refreshLibrary, revokeCoverUrls])
 
   const handleCloseUpload = useCallback(() => setUploadOpen(false), [])
