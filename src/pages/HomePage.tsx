@@ -12,12 +12,13 @@ import {
 import { storageService } from '@/db/StorageService'
 import type { Book, Progress } from '@/db/types'
 import { importService, type ImportProgressUpdate } from '@/importer/ImportService'
-import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark, Sun, Moon } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark, Settings } from 'lucide-react'
 import { ReaderPage } from '@/pages/ReaderPage'
 import { useTheme } from '@/hooks/useTheme'
 import { gamification, levelFor, weekMinutes, todayStats, EVENT_LABELS, POINTS, emptyState, type ReaderProfile, type ScoreState, type ScoreEvent } from '@/gamification/score'
 import { ReaderCard } from '@/components/ReaderCard'
 import { LIBRARY_CHANGED_EVENT } from '@/shared/sharedFiles'
+import { SettingsSheet } from '@/components/SettingsSheet'
 
 interface LibraryEntry {
   id: string
@@ -45,7 +46,8 @@ type ImportStage = (typeof IMPORT_STAGES)[number] | 'idle'
 type StepStatus = 'pending' | 'active' | 'done' | 'error'
 
 export function HomePage() {
-  const { theme, toggleTheme } = useTheme()
+  useTheme() // keeps the document theme applied on this page
+  const [showSettings, setShowSettings] = useState(false)
   const [entries, setEntries] = useState<LibraryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -173,11 +175,11 @@ export function HomePage() {
         <div className="flex shrink-0 flex-col items-end gap-3">
           <button
             type="button"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            onClick={() => setShowSettings(true)}
+            aria-label="Settings"
             className="nb-icon-btn nb-btn-neutral"
           >
-            {theme === 'dark' ? <Sun className="h-5 w-5" strokeWidth={2.5} /> : <Moon className="h-5 w-5" strokeWidth={2.5} />}
+            <Settings className="h-5 w-5" strokeWidth={2.5} />
           </button>
           <button
             type="button"
@@ -242,6 +244,8 @@ export function HomePage() {
       {showCard ? (
         <ScoreSheet score={score} profile={profile} onClose={() => setShowCard(false)} />
       ) : null}
+
+      {showSettings ? <SettingsSheet onClose={() => setShowSettings(false)} /> : null}
 
       {deleteBookId ? (
         <DeleteConfirmationModal

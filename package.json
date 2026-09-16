@@ -1,5 +1,6 @@
 {
   "name": "skim",
+  "version": "0.3.3",
   "module": "index.ts",
   "type": "module",
   "private": true,

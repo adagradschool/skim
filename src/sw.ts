@@ -12,6 +12,10 @@ export const SHARE_TARGET_PATH = '/share-target'
 self.skipWaiting()
 clientsClaim()
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting()
+})
+
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
