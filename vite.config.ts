@@ -80,9 +80,9 @@ export default defineConfig({
         type: 'module',
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
-        // Bundled books are fetched on demand, not precached
-        globIgnores: ['**/books/**'],
+        // The Store catalog (json) is precached so browsing works offline;
+        // the books themselves come from standardebooks.org on demand.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,json}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),

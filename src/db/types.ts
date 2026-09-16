@@ -9,6 +9,8 @@ export interface Book {
   modifiedAt: number
   sizeBytes: number
   coverBlob?: Blob
+  /** Where the book came from, e.g. "standardebooks:<id>". Absent for user uploads. */
+  sourceId?: string
 }
 
 export interface BookAsset {

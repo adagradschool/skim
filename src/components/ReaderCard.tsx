@@ -1,6 +1,6 @@
 import type { ReaderProfile } from '@/gamification/score'
 import { levelFor } from '@/gamification/score'
-import { INTERESTS } from '@/onboarding/starterBooks'
+import { INTERESTS } from '@/onboarding/interests'
 
 interface ReaderCardProps {
   profile: ReaderProfile

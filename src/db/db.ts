@@ -15,6 +15,7 @@ export interface SkimDB extends DBSchema {
       modifiedAt: number
       sizeBytes: number
       coverBlob?: Blob
+      sourceId?: string
     }
     indexes: { 'by-modified': number }
   }

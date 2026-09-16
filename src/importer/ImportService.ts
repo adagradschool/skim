@@ -18,6 +18,8 @@ export interface ImportProgressUpdate {
 export interface ImportOptions {
   onProgress?: (update: ImportProgressUpdate) => void
   signal?: AbortSignal
+  /** Provenance tag for catalog downloads, stored on the book. */
+  sourceId?: string
 }
 
 /**
@@ -32,7 +34,7 @@ export class ImportService {
    * @returns Book ID of the imported title
    */
   async import(file: File, options: ImportOptions = {}): Promise<string> {
-    const { onProgress, signal } = options
+    const { onProgress, signal, sourceId } = options
 
     try {
       this.ensureNotAborted(signal)
@@ -104,6 +106,7 @@ export class ImportService {
         modifiedAt: timestamp,
         sizeBytes: file.size,
         coverBlob: parseResult.meta.coverBlob,
+        ...(sourceId ? { sourceId } : {}),
       }
 
       onProgress?.({

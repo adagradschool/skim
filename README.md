@@ -33,6 +33,20 @@ bun run build
 bun run preview
 ```
 
+## Store catalog
+
+The Store tab lists Standard Ebooks titles from a static manifest at `public/catalog/standard-ebooks.json`.
+The EPUBs themselves are fetched from standardebooks.org when a reader taps a book (their downloads send CORS headers),
+so the app hosts metadata only. Rebuild the manifest when you want new releases:
+
+```bash
+bun scripts/build-catalog.ts            # ~10 minutes, polite to their servers
+bun scripts/build-catalog.ts --limit 20 # quick smoke test
+```
+
+Standard Ebooks rate-limits EPUB downloads per IP (roughly a hundred per window), so never bulk-probe the download URLs.
+Cover images are hot-linked from standardebooks.org. Everything Standard Ebooks produces is CC0.
+
 ## Project Status
 
 ### ✅ Milestone 0 - Repo Bootstrap & Quality Gates (COMPLETE)

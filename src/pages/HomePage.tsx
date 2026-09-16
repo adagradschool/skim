@@ -12,13 +12,14 @@ import {
 import { storageService } from '@/db/StorageService'
 import type { Book, Progress } from '@/db/types'
 import { importService, type ImportProgressUpdate } from '@/importer/ImportService'
-import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark, Settings } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, Circle, Loader2, MoreVertical, Plus, Trash2, Upload, X, Bookmark, Settings, Store } from 'lucide-react'
 import { ReaderPage } from '@/pages/ReaderPage'
 import { useTheme } from '@/hooks/useTheme'
 import { gamification, levelFor, weekMinutes, todayStats, EVENT_LABELS, POINTS, emptyState, type ReaderProfile, type ScoreState, type ScoreEvent } from '@/gamification/score'
 import { ReaderCard } from '@/components/ReaderCard'
 import { LIBRARY_CHANGED_EVENT } from '@/shared/sharedFiles'
 import { SettingsSheet } from '@/components/SettingsSheet'
+import { StorePage } from '@/store/StorePage'
 
 interface LibraryEntry {
   id: string
@@ -58,6 +59,7 @@ export function HomePage() {
   const [score, setScore] = useState<ScoreState>(emptyState())
   const [profile, setProfile] = useState<ReaderProfile | null>(null)
   const [showCard, setShowCard] = useState(false)
+  const [showStore, setShowStore] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -163,24 +165,49 @@ export function HomePage() {
     return <ReaderPage bookId={readingBookId} onExit={handleExitReader} openBookmarksOnMount={showBookmarksOnOpen} />
   }
 
+  if (showStore) {
+    return (
+      <StorePage
+        onClose={() => {
+          setShowStore(false)
+          void refreshLibrary()
+        }}
+        onRead={(bookId) => {
+          setShowStore(false)
+          void handleOpenBook(bookId)
+        }}
+      />
+    )
+  }
+
   return (
     <div className="relative min-h-screen bg-bg bg-dots text-fg dark:bg-bg-dark dark:bg-dots-dark dark:text-fg-dark">
 
       <header className="flex items-start justify-between px-6 pt-8 pb-6">
-        <div>
+        <div className="min-w-0 pr-3">
           <span className="nb-chip bg-yellow text-black">Skim</span>
-          <h1 className="mt-3 font-display text-3xl uppercase leading-none tracking-tight">Your Library</h1>
+          <h1 className="mt-3 font-display text-2xl uppercase leading-none tracking-tight sm:text-3xl">Your Library</h1>
           <p className="mt-2 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">Pick up where you left off or start something new.</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-3">
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            aria-label="Settings"
-            className="nb-icon-btn nb-btn-neutral"
-          >
-            <Settings className="h-5 w-5" strokeWidth={2.5} />
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowStore(true)}
+              aria-label="Store"
+              className="nb-icon-btn nb-btn-yellow"
+            >
+              <Store className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              aria-label="Settings"
+              className="nb-icon-btn nb-btn-neutral"
+            >
+              <Settings className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => setShowCard(true)}
@@ -205,7 +232,7 @@ export function HomePage() {
             {error}
           </div>
         ) : entries.length === 0 ? (
-          <EmptyLibrary onUpload={() => setUploadOpen(true)} />
+          <EmptyLibrary onUpload={() => setUploadOpen(true)} onStore={() => setShowStore(true)} />
         ) : (
           <ul className="space-y-4">
             {entries.map((entry) => (
@@ -234,7 +261,11 @@ export function HomePage() {
       {isUploadOpen ? (
         <UploadOverlay
           onClose={handleCloseUpload}
-          onImported={async (bookId) => {
+          onOpenStore={() => {
+            handleCloseUpload()
+            setShowStore(true)
+          }}
+          onImported={async () => {
             await refreshLibrary()
             handleCloseUpload()
           }}
@@ -276,10 +307,11 @@ function IconButton({ label, children }: IconButtonProps) {
 
 interface UploadOverlayProps {
   onClose: () => void
+  onOpenStore: () => void
   onImported: (bookId: string) => Promise<void> | void
 }
 
-function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
+function UploadOverlay({ onClose, onOpenStore, onImported }: UploadOverlayProps) {
   const [dragActive, setDragActive] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [progressStage, setProgressStage] = useState<ImportStage>('idle')
@@ -515,6 +547,20 @@ function UploadOverlay({ onClose, onImported }: UploadOverlayProps) {
           {fileName ? <p className="mt-3 text-sm font-semibold">Selected: {fileName}</p> : null}
         </div>
 
+        {!isUploading && !importedBookId ? (
+          <button
+            type="button"
+            onClick={onOpenStore}
+            className="nb-btn nb-btn-yellow mt-4 w-full justify-start gap-3 px-4 py-3 text-left"
+          >
+            <Store className="h-5 w-5 shrink-0" strokeWidth={2.5} />
+            <span>
+              <span className="block text-sm font-extrabold">Nothing on hand? Browse the Store</span>
+              <span className="block text-xs font-semibold opacity-70">Hundreds of free classics, ready to read</span>
+            </span>
+          </button>
+        ) : null}
+
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between text-sm font-bold">
             <span>
@@ -704,23 +750,24 @@ function ProgressBar({ percent }: ProgressBarProps) {
   )
 }
 
-function EmptyLibrary({ onUpload }: { onUpload: () => void }) {
+function EmptyLibrary({ onUpload, onStore }: { onUpload: () => void; onStore: () => void }) {
   return (
-    <div className="nb-box-lg flex flex-col items-center justify-center px-6 py-16 text-center">
+    <div className="nb-box-lg flex flex-col items-center justify-center px-6 py-12 text-center">
       <div className="nb-box flex h-16 w-16 items-center justify-center bg-yellow text-black dark:bg-yellow">
-        <Upload className="h-7 w-7" strokeWidth={2.5} />
+        <Store className="h-7 w-7" strokeWidth={2.5} />
       </div>
-      <h2 className="mt-5 text-xl font-extrabold uppercase">Upload your first book</h2>
+      <h2 className="mt-5 text-xl font-extrabold uppercase">Your shelf is empty</h2>
       <p className="mt-2 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">
-        Import an EPUB or PDF to start reading quick-slide chapters.
+        Pick a free classic from the Store, or bring your own EPUB or PDF.
       </p>
-      <button
-        type="button"
-        className="nb-btn nb-btn-main mt-6 px-5 py-2.5 text-sm"
-        onClick={onUpload}
-      >
-        Add a book
-      </button>
+      <div className="mt-6 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+        <button type="button" className="nb-btn nb-btn-main px-5 py-2.5 text-sm" onClick={onStore}>
+          <Store className="h-4 w-4" strokeWidth={2.5} /> Browse the Store
+        </button>
+        <button type="button" className="nb-btn nb-btn-neutral px-5 py-2.5 text-sm" onClick={onUpload}>
+          <Upload className="h-4 w-4" strokeWidth={2.5} /> Upload a file
+        </button>
+      </div>
     </div>
   )
 }

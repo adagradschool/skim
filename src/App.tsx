@@ -148,8 +148,12 @@ function App() {
     return (
       <KonstaApp theme="ios" safeAreas>
         <Onboarding
-          onDone={async () => {
+          onDone={async (bookId) => {
             await storageService.setKV('onboardingDone', true)
+            if (bookId) {
+              await storageService.setKV('lastOpenedBookId', bookId)
+              setInitialBookId(bookId)
+            }
             setNeedsOnboarding(false)
           }}
         />

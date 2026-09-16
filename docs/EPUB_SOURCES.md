@@ -33,7 +33,7 @@ Standard Ebooks is the only CORS-friendly EPUB file host found. Everything else 
 
 ## 1. Public domain, English, hand-curated
 
-**Standard Ebooks** — https://standardebooks.org — ~1,500 titles (Aug 2026). EPUB3 plus `_advanced.epub`, `.kepub.epub`, `.azw3`. CC0 for their work, texts US-PD. Per-book downloads are free (donate interstitial, not a wall). Atom new-releases feed public at `/feeds/atom/new-releases`. **OPDS (`/feeds/opds`) and bulk zips return 401, patrons only.** Full source per book on GitHub under `github.com/standardebooks/`, so cloning is the practical mirror route. Mirror OK: yes. CORS: yes on downloads. Quality: best-in-class semantic EPUB3. Alive.
+**Standard Ebooks** — https://standardebooks.org — ~1,500 titles (Aug 2026). EPUB3 plus `_advanced.epub`, `.kepub.epub`, `.azw3`. CC0 for their work, texts US-PD. Per-book downloads are free, but the plain download URL returns a donate interstitial page; append `?source=download` to get the EPUB itself (verified: `application/epub+zip`, CORS `*`). Atom new-releases feed public at `/feeds/atom/new-releases`. **OPDS (`/feeds/opds`) and bulk zips return 401, patrons only.** Full source per book on GitHub under `github.com/standardebooks/`, so cloning is the practical mirror route. Mirror OK: yes. CORS: yes on downloads. Quality: best-in-class semantic EPUB3. Alive.
 
 **Faded Page** — https://www.fadedpage.com — 9,132 ebooks. EPUB2, MOBI, PDF, HTML, TXT via `link.php?file=<id>.epub`. PD in Canada (life+50 through the 2022 freeze), so many titles are still copyrighted in the US and EU; check per title before mirroring to a US host. No OPDS or API, no bulk. Hand-proofed by Distributed Proofreaders Canada, auto EPUB build. CORS: no. Alive.
 
