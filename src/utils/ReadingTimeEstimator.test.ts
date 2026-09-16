@@ -1,135 +1,89 @@
-import { test, expect, describe } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { ReadingTimeEstimator } from './ReadingTimeEstimator'
 
-describe('ReadingTimeEstimator', () => {
-  test('should start with zero observations', () => {
-    const estimator = new ReadingTimeEstimator()
-    expect(estimator.getObservationCount()).toBe(0)
-    expect(estimator.shouldEnableAutoplay()).toBe(false)
+const E = ReadingTimeEstimator
+
+describe('ReadingTimeEstimator (robust speed model)', () => {
+  test('starts from the prior and predicts sensibly before any data', () => {
+    const m = new E()
+    expect(m.getCharsPerSecond()).toBeCloseTo(E.PRIOR_CPS, 5)
+    // 280 chars at 14 cps = 20s, x1.15 + 1.5 ≈ 24.5s
+    expect(m.predict(280)).toBeCloseTo(1.5 + (280 / 14) * 1.15, 3)
+    expect(m.shouldEnableAutoplay()).toBe(false)
   })
 
-  test('should not enable autoplay until 5 observations', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    for (let i = 0; i < 4; i++) {
-      estimator.addObservation(10, 100)
-      expect(estimator.shouldEnableAutoplay()).toBe(false)
-    }
-
-    estimator.addObservation(10, 100)
-    expect(estimator.shouldEnableAutoplay()).toBe(true)
+  test('converges to a consistent reader quickly', () => {
+    const m = new E()
+    for (let i = 0; i < 8; i++) m.addObservation(10, 250) // 25 cps
+    expect(m.getCharsPerSecond()).toBeGreaterThan(22)
+    expect(m.getCharsPerSecond()).toBeLessThanOrEqual(25)
+    expect(m.shouldEnableAutoplay()).toBe(true)
   })
 
-  test('should return default prediction with no observations', () => {
-    const estimator = new ReadingTimeEstimator()
-    const prediction = estimator.predict(0)
-
-    // Should return buffer with no words to estimate against
-    expect(prediction).toBe(2)
+  test('a long pause is ignored and does not make later predictions aggressive', () => {
+    const m = new E()
+    for (let i = 0; i < 6; i++) m.addObservation(12, 240) // 20 cps
+    const before = m.predict(300)
+    // phone put down for 10 minutes on a slide
+    expect(m.addObservation(600, 240)).toBe(false)
+    expect(m.predict(300)).toBeCloseTo(before, 6)
+    // and a moderately long slide still gets a moderate prediction
+    expect(m.predict(600)).toBeLessThanOrEqual(E.MAX_SECONDS)
+    expect(m.predict(50)).toBeGreaterThanOrEqual(E.MIN_SECONDS)
   })
 
-  test('should estimate using average seconds per word with a single observation', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    estimator.addObservation(10, 100)
-
-    expect(estimator.getSlope()).toBeCloseTo(0.1, 5)
-    expect(estimator.getIntercept()).toBe(0)
-
-    // Prediction should be slope * words + buffer (10 + 2 = 12)
-    expect(estimator.predict(100)).toBeCloseTo(12, 5)
+  test('auto-advanced slides are not learned from', () => {
+    const m = new E()
+    for (let i = 0; i < 4; i++) m.addObservation(10, 200)
+    const cps = m.getCharsPerSecond()
+    for (let i = 0; i < 20; i++) expect(m.addObservation(m.predict(200), 200, { auto: true })).toBe(false)
+    expect(m.getCharsPerSecond()).toBe(cps)
+    expect(m.getObservationCount()).toBe(4)
   })
 
-  test('should fit a linear regression for multiple observations', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    estimator.addObservation(20, 100)
-    estimator.addObservation(40, 200)
-    estimator.addObservation(60, 300)
-
-    expect(estimator.getSlope()).toBeCloseTo(0.2, 5)
-    expect(estimator.getIntercept()).toBeCloseTo(0, 5)
+  test('implausible speeds are ignored', () => {
+    const m = new E()
+    expect(m.addObservation(0.2, 300)).toBe(false) // reflexive double tap: 1500 cps
+    expect(m.addObservation(40, 40)).toBe(false) // 1 cps stall (but under pause floor)
+    expect(m.getObservationCount()).toBe(0)
   })
 
-  test('should add buffer to predictions', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    estimator.addObservation(10, 100)
-
-    // Prediction should be 10 + 2 (buffer) = 12
-    expect(estimator.predict(100)).toBe(12)
+  test('one odd slide barely moves a settled estimate', () => {
+    const m = new E()
+    for (let i = 0; i < 30; i++) m.addObservation(10, 200) // 20 cps
+    const before = m.getCharsPerSecond()
+    m.addObservation(4, 200) // 50 cps: a skim, plausible but odd
+    const after = m.getCharsPerSecond()
+    expect(after).toBeGreaterThan(before)
+    expect(after / before).toBeLessThan(1.15)
   })
 
-  test('should fallback to average seconds per word when word counts do not vary', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    estimator.addObservation(10, 100)
-    estimator.addObservation(20, 100)
-
-    const prediction = estimator.predict(100)
-    expect(prediction).toBeCloseTo(17, 5)
+  test('predictions are clamped and never rushed', () => {
+    const m = new E()
+    for (let i = 0; i < 10; i++) m.addObservation(2, 100) // 50 cps, a fast reader
+    expect(m.predict(10)).toBe(E.MIN_SECONDS)
+    expect(m.predict(100000)).toBe(E.MAX_SECONDS)
+    // prediction for a normal slide is above the raw time by overhead + margin
+    const raw = 300 / m.getCharsPerSecond()
+    expect(m.predict(300)).toBeGreaterThan(raw)
   })
 
-  test('should adapt to changing reading speeds', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    // Start with fast reading
-    for (let i = 0; i < 3; i++) {
-      estimator.addObservation(6, 100)
-    }
-
-    const fastPrediction = estimator.predict(100)
-
-    // Switch to slower reading
-    for (let i = 0; i < 5; i++) {
-      estimator.addObservation(15, 100)
-    }
-
-    const slowPrediction = estimator.predict(100)
-
-    // Prediction should have increased
-    expect(slowPrediction).toBeGreaterThan(fastPrediction)
+  test('survives a snapshot round trip and rejects a corrupt one', () => {
+    const m = new E()
+    for (let i = 0; i < 5; i++) m.addObservation(10, 300)
+    const copy = new E(m.snapshot())
+    expect(copy.getCharsPerSecond()).toBeCloseTo(m.getCharsPerSecond(), 10)
+    expect(copy.getObservationCount()).toBe(5)
+    const bad = new E({ logCps: Math.log(1000), n: 99 })
+    expect(bad.getCharsPerSecond()).toBeCloseTo(E.PRIOR_CPS, 5)
+    expect(bad.getObservationCount()).toBe(0)
   })
 
-  test('should reset correctly', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    // Add some observations
-    for (let i = 0; i < 5; i++) {
-      estimator.addObservation(10, 100)
-    }
-
-    expect(estimator.getObservationCount()).toBe(5)
-    expect(estimator.shouldEnableAutoplay()).toBe(true)
-
-    // Reset
-    estimator.reset()
-
-    expect(estimator.getObservationCount()).toBe(0)
-    expect(estimator.shouldEnableAutoplay()).toBe(false)
-    expect(estimator.getSlope()).toBeCloseTo(0.3, 5)
-    expect(estimator.getIntercept()).toBe(0)
-  })
-
-  test('should handle edge case of very long reading times', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    estimator.addObservation(300, 100) // 5 minutes for 100 words
-
-    const prediction = estimator.predict(100)
-    expect(prediction).toBe(302) // 300 + 2 buffer
-  })
-
-  test('should demonstrate O(1) space complexity', () => {
-    const estimator = new ReadingTimeEstimator()
-
-    // Add many observations
-    for (let i = 0; i < 1000; i++) {
-      estimator.addObservation(10 + Math.random() * 5, 100 + i)
-    }
-
-    // Should still work fine with constant state size
-    expect(estimator.getObservationCount()).toBe(1000)
-    expect(estimator.predict(200)).toBeGreaterThan(0)
+  test('reset returns to the prior', () => {
+    const m = new E()
+    for (let i = 0; i < 5; i++) m.addObservation(5, 300)
+    m.reset()
+    expect(m.getCharsPerSecond()).toBeCloseTo(E.PRIOR_CPS, 5)
+    expect(m.shouldEnableAutoplay()).toBe(false)
   })
 })

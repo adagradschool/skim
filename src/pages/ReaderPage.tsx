@@ -59,9 +59,17 @@ export function ReaderPage({
   const [finished, setFinished] = useState<{ points: number; total: number; level: string } | null>(null)
   const { theme, toggleTheme } = useTheme()
 
-  // Reading time estimation
+  // Reading time estimation (persisted speed model)
   const readingEstimator = useRef(new ReadingTimeEstimator())
   const slideEntryTime = useRef<number>(0)
+  const lastAdvanceWasAuto = useRef<boolean>(false)
+  const saveSpeedTimer = useRef<number | null>(null)
+  const persistSpeed = useCallback(() => {
+    if (saveSpeedTimer.current !== null) clearTimeout(saveSpeedTimer.current)
+    saveSpeedTimer.current = window.setTimeout(() => {
+      void storageService.setKV('readingSpeed', readingEstimator.current.snapshot()).catch(() => {})
+    }, 500)
+  }, [])
 
   // Touch state
   const touchStartX = useRef<number | null>(null)
@@ -196,8 +204,18 @@ export function ReaderPage({
   }, [bookId, loadBookmarks, openBookmarksOnMount])
 
   useEffect(() => {
-    readingEstimator.current.reset()
+    // Speed is a property of the reader, not the book: restore it once.
+    let alive = true
+    storageService
+      .getKV('readingSpeed')
+      .then((snap) => {
+        if (alive && snap) readingEstimator.current.restore(snap)
+      })
+      .catch(() => {})
     slideEntryTime.current = Date.now()
+    return () => {
+      alive = false
+    }
   }, [bookId])
 
   // Wake lock initialization and visibility handling
@@ -212,9 +230,12 @@ export function ReaderPage({
         // Reacquire wake lock when page becomes visible
         requestWakeLock()
         resetInactivityTimer()
+        // Time away is not reading time: restart the slide clock.
+        slideEntryTime.current = Date.now()
       } else {
         // Release wake lock when page is hidden
         releaseWakeLock()
+        slideEntryTime.current = 0
         if (inactivityTimerRef.current !== null) {
           clearTimeout(inactivityTimerRef.current)
           inactivityTimerRef.current = null
@@ -244,10 +265,14 @@ export function ReaderPage({
     // Record time spent on slide
     if (slideEntryTime.current > 0) {
       const timeSpent = (Date.now() - slideEntryTime.current) / 1000
-      const currentWords = slides[currentSlideIndex]?.words ?? 0
-      readingEstimator.current.addObservation(timeSpent, currentWords)
+      const currentChars = slides[currentSlideIndex]?.text.length ?? 0
+      const used = readingEstimator.current.addObservation(timeSpent, currentChars, {
+        auto: lastAdvanceWasAuto.current,
+      })
+      if (used) persistSpeed()
       void gamification.addReadingTime(timeSpent).catch(() => {})
     }
+    lastAdvanceWasAuto.current = false
     slideEntryTime.current = Date.now()
 
     // Move to next slide if not at end
@@ -273,7 +298,7 @@ export function ReaderPage({
         /* ignore */
       }
     }
-  }, [slides, currentSlideIndex, bookId, resetInactivityTimer])
+  }, [slides, currentSlideIndex, bookId, resetInactivityTimer, persistSpeed])
 
   // Navigate to previous slide
   const goToPrevious = useCallback(async () => {
@@ -326,8 +351,8 @@ export function ReaderPage({
     stopAutoAdvance()
     setProgressPercent(0)
 
-    const currentWords = slides[currentSlideIndex]?.words ?? 0
-    const duration = readingEstimator.current.predict(currentWords) * 1000
+    const currentChars = slides[currentSlideIndex]?.text.length ?? 0
+    const duration = readingEstimator.current.predict(currentChars) * 1000
     const startTime = Date.now()
 
     progressIntervalRef.current = window.setInterval(() => {
@@ -337,6 +362,7 @@ export function ReaderPage({
     }, 50)
 
     autoAdvanceTimerRef.current = window.setTimeout(() => {
+      lastAdvanceWasAuto.current = true
       goToNext()
     }, duration)
   }, [currentSlideIndex, goToNext, slides, stopAutoAdvance])
@@ -390,11 +416,19 @@ export function ReaderPage({
     }
   }, [showControls])
 
-  // Touch handlers
+  // Touch handlers. Taps on controls or inside a dialog are never page turns.
+  const isUiTarget = (target: EventTarget | null) =>
+    target instanceof Element && !!target.closest('button, a, input, textarea, select, [role="dialog"], [role="switch"], .nb-overlay')
+
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
       const touch = e.touches[0]
       if (!touch) return
+      if (isUiTarget(e.target)) {
+        touchStartX.current = null
+        touchStartY.current = null
+        return
+      }
       touchStartX.current = touch.clientX
       touchStartY.current = touch.clientY
       touchStartTime.current = Date.now()
@@ -415,6 +449,11 @@ export function ReaderPage({
       isHolding.current = false
 
       if (touchStartX.current === null || touchStartY.current === null) {
+        return
+      }
+      if (isUiTarget(e.target) || showSettings || showIndex || showAddBookmark || showBookmarks || finished) {
+        touchStartX.current = null
+        touchStartY.current = null
         return
       }
 
@@ -464,7 +503,7 @@ export function ReaderPage({
         setIsPaused(false)
       }
     },
-    [goToNext, goToPrevious]
+    [goToNext, goToPrevious, showSettings, showIndex, showAddBookmark, showBookmarks, finished]
   )
 
   useEffect(() => {
@@ -796,21 +835,21 @@ export function ReaderPage({
                       <span>Predicted time:</span>
                       <span className="nb-chip bg-lime text-black">
                         {readingEstimator.current
-                          .predict(slides[currentSlideIndex]?.words ?? 0)
+                          .predict(slides[currentSlideIndex]?.text.length ?? 0)
                           .toFixed(1)}
                         s
                       </span>
                     </div>
                     <div className="mt-2 text-xs text-fg-muted dark:text-fg-muted-dark">
-                      Based on {readingEstimator.current.getObservationCount()}{' '}
-                      slides read
+                      About {readingEstimator.current.getWordsPerMinute()} words per minute, from{' '}
+                      {readingEstimator.current.getObservationCount()} slides you turned yourself
                     </div>
                   </div>
                 ) : (
                   <div className="text-sm font-semibold">
                     Learning your reading speed...
                     <div className="mt-1 text-xs text-fg-muted dark:text-fg-muted-dark">
-                      {readingEstimator.current.getObservationCount()} of 5
+                      {readingEstimator.current.getObservationCount()} of {ReadingTimeEstimator.MIN_OBSERVATIONS}{' '}
                       slides
                     </div>
                   </div>
