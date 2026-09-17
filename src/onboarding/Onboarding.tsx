@@ -4,13 +4,14 @@ import { importService } from '@/importer/ImportService'
 import { gamification, type ReaderProfile } from '@/gamification/score'
 import { ANDROID_APK_URL, NATIVE_APP_PITCH, isAndroidBrowser } from '@/platform'
 import { CatalogBrowser } from '@/store/CatalogBrowser'
+import { SkimDemo } from './SkimDemo'
 
 interface OnboardingProps {
   /** Pass the book id to drop the reader straight into it. */
   onDone: (bookId?: string) => void
 }
 
-type Step = 'install' | 'pick'
+type Step = 'install' | 'intro' | 'pick'
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 const DEFAULT_TARGET_MINUTES = 20
@@ -18,12 +19,12 @@ const DEFAULT_TARGET_MINUTES = 20
 const FIRST_PICKS = 12
 
 /**
- * Onboarding is one job: get a book open. A short pitch, then the catalog.
+ * Onboarding is one job: get a book open. One line on what Skim is, then the catalog.
  * Reading-target and interests live in settings now; the profile is minted
  * with defaults so the score and card work from the first slide.
  */
 export function Onboarding({ onDone }: OnboardingProps) {
-  const [step, setStep] = useState<Step>(isAndroidBrowser ? 'install' : 'pick')
+  const [step, setStep] = useState<Step>(isAndroidBrowser ? 'install' : 'intro')
   const [lit, setLit] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -84,7 +85,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
   )
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-black text-white">
+    <div className="fixed inset-0 z-[60] overflow-x-hidden overflow-y-auto bg-black text-white">
       {/* the "orb": a page that grows out of the dark */}
       <div
         className={`pointer-events-none fixed left-1/2 top-1/2 h-[140vmax] w-[140vmax] -translate-x-1/2 -translate-y-1/2 rounded-full bg-bg bg-dots transition-transform duration-[1200ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
@@ -104,10 +105,32 @@ export function Onboarding({ onDone }: OnboardingProps) {
               <a href={ANDROID_APK_URL} className="nb-btn nb-btn-main w-full px-5 py-3.5 text-base">
                 <Download className="h-5 w-5" strokeWidth={2.5} /> {NATIVE_APP_PITCH.cta}
               </a>
-              <button type="button" className="nb-btn nb-btn-neutral w-full px-5 py-3 text-sm" onClick={() => setStep('pick')}>
+              <button type="button" className="nb-btn nb-btn-neutral w-full px-5 py-3 text-sm" onClick={() => setStep('intro')}>
                 Continue in the browser
               </button>
             </div>
+          </div>
+        )}
+
+        {step === 'intro' && (
+          <div className={`flex flex-1 flex-col transition-opacity duration-700 ${lit ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="nb-box-lg inline-flex w-fit rotate-[-3deg] items-center bg-yellow px-4 py-2 font-display text-2xl uppercase text-black">
+              Skim
+            </div>
+            <h1 className="mt-7 font-display text-4xl leading-[1.05] uppercase">
+              Scroll less,
+              <br />
+              read more.
+            </h1>
+            <p className="mt-3 text-base font-semibold text-fg-muted">
+              Whole books, in short cards that play like stories.
+            </p>
+            <div className="flex flex-1 items-center justify-center py-8">
+              <SkimDemo />
+            </div>
+            <button type="button" className="nb-btn nb-btn-main w-full px-5 py-3.5 text-base" onClick={() => setStep('pick')}>
+              Pick a book <ArrowRight className="h-5 w-5" strokeWidth={2.5} />
+            </button>
           </div>
         )}
 
@@ -128,9 +151,6 @@ export function Onboarding({ onDone }: OnboardingProps) {
               </button>
             </div>
             <h1 className="mt-6 font-display text-3xl leading-[1.05] uppercase">Pick your first book.</h1>
-            <p className="mt-2 text-sm font-semibold text-fg-muted">
-              Books, cut into slides. Tap to turn the page. Start with a free classic, or bring your own.
-            </p>
 
             <div className="mt-5">
               <CatalogBrowser
@@ -152,7 +172,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-extrabold">{uploading ? `Adding ${uploading}…` : 'Upload my own'}</span>
-                  <span className="block truncate text-xs font-semibold opacity-70">An EPUB or PDF from this device, up to 20 MB</span>
+                  <span className="block truncate text-xs font-semibold opacity-70">EPUB or PDF, up to 20 MB</span>
                 </span>
                 {!uploading ? <ArrowRight className="ml-auto h-4 w-4 shrink-0" strokeWidth={2.5} /> : null}
               </button>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, Download, ExternalLink, Loader2, Moon, RefreshCw, Smartphone, Sun } from 'lucide-react'
+import { AlertTriangle, Check, Download, ExternalLink, Loader2, Moon, RefreshCw, Smartphone, Sun, Trash2 } from 'lucide-react'
+import { storageService } from '@/db/StorageService'
 import { useTheme, type ThemeSetting } from '@/hooks/useTheme'
 import { isNativeApp } from '@/platform'
 import { APP_VERSION, RELEASES_PAGE, fetchLatestRelease, refreshWebApp, type ReleaseInfo } from '@/updates'
@@ -23,6 +24,8 @@ type UpdateState =
 export function SettingsSheet({ onClose }: SettingsSheetProps) {
   const { setting, setSetting } = useTheme()
   const [update, setUpdate] = useState<UpdateState>({ kind: 'idle' })
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   const checkForUpdates = async () => {
     setUpdate({ kind: 'checking' })
@@ -34,6 +37,45 @@ export function SettingsSheet({ onClose }: SettingsSheetProps) {
     } catch (err) {
       setUpdate({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
     }
+  }
+
+  const startOver = async () => {
+    setResetting(true)
+    try {
+      await storageService.clear()
+      // A full reload drops every in-memory cache (score, profile, open DB) and lands on onboarding.
+      window.location.replace('/')
+    } catch (err) {
+      console.error('Reset failed', err)
+      setResetting(false)
+    }
+  }
+
+  if (confirmReset) {
+    return (
+      <div className="nb-overlay" role="dialog" aria-modal="true" aria-label="Start over">
+        <div className="nb-modal max-w-sm p-6">
+          <div className="flex items-center gap-3">
+            <div className="nb-box-flat flex h-10 w-10 items-center justify-center bg-danger text-black dark:bg-danger-dark">
+              <AlertTriangle className="h-5 w-5" strokeWidth={2.5} />
+            </div>
+            <h2 className="text-xl font-extrabold uppercase">Start over?</h2>
+          </div>
+          <p className="mt-4 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">
+            This deletes every book, your reading positions, bookmarks, notes, score and reader card from this device. It cannot be undone.
+          </p>
+          <div className="mt-6 flex gap-3">
+            <button type="button" className="nb-btn nb-btn-neutral flex-1 px-4 py-2 text-sm" onClick={() => setConfirmReset(false)} disabled={resetting}>
+              Keep my data
+            </button>
+            <button type="button" className="nb-btn nb-btn-danger flex-1 px-4 py-2 text-sm" onClick={startOver} disabled={resetting}>
+              {resetting ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} /> : <Trash2 className="h-4 w-4" strokeWidth={2.5} />}
+              Delete everything
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -138,6 +180,17 @@ export function SettingsSheet({ onClose }: SettingsSheetProps) {
                 </a>
               </div>
             ) : null}
+          </div>
+
+          <div className="mt-6 text-xs font-extrabold uppercase tracking-widest text-fg-muted dark:text-fg-muted-dark">Local data</div>
+          <div className="nb-muted mt-3 flex items-center justify-between gap-3 p-4">
+            <div>
+              <div className="text-sm font-extrabold">Start over</div>
+              <div className="text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">Wipe this device and see onboarding again</div>
+            </div>
+            <button type="button" className="nb-btn nb-btn-danger shrink-0 px-3 py-2 text-xs uppercase tracking-wider" onClick={() => setConfirmReset(true)}>
+              <Trash2 className="h-4 w-4" strokeWidth={2.5} /> Reset
+            </button>
           </div>
         </div>
 

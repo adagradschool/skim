@@ -311,7 +311,7 @@ function BookSheet({ book, owned, onClose, onImported, onRead }: BookSheetProps)
 
           {book.blurb ? <p className="mt-4 text-sm font-semibold leading-relaxed">{book.blurb}</p> : null}
           <p className="mt-3 text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">
-            A free, carefully edited public-domain edition from Standard Ebooks.
+            Complete and unabridged. Free from Standard Ebooks.
           </p>
 
           {state.kind === 'downloading' || state.kind === 'importing' ? (

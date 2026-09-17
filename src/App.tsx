@@ -60,7 +60,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const checkLastOpenedBook = async () => {
+    const checkOnboarding = async () => {
       try {
         const onboarded = await storageService.getKV('onboardingDone')
         if (!onboarded) {
@@ -72,32 +72,16 @@ function App() {
             await storageService.setKV('onboardingDone', true)
           }
         }
-
-        // Get the last opened book ID from storage
-        const lastBookId = await storageService.getKV('lastOpenedBookId')
-
-        if (lastBookId) {
-          // Verify the book still exists
-          const book = await storageService.getBook(lastBookId)
-          if (book) {
-            setInitialBookId(lastBookId)
-          } else {
-            // Book was deleted, clear the stored ID
-            await storageService.deleteKV('lastOpenedBookId')
-            setInitialBookId(null)
-          }
-        } else {
-          setInitialBookId(null)
-        }
       } catch (err) {
-        console.error('Failed to check last opened book', err)
-        setInitialBookId(null)
+        console.error('Failed to check onboarding state', err)
       } finally {
+        // Always land on the library; a book opens only when the reader asks for one.
+        setInitialBookId(null)
         setIsCheckingLastBook(false)
       }
     }
 
-    checkLastOpenedBook()
+    checkOnboarding()
   }, [])
 
   const handleExitReader = () => {
