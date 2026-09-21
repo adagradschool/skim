@@ -7,52 +7,72 @@ import { storageService } from '@/db/StorageService'
 import { Loader2 } from 'lucide-react'
 import { Onboarding } from '@/onboarding/Onboarding'
 import { importService } from '@/importer/ImportService'
-import { isAcceptedFile, notifyLibraryChanged, onSharedFile, takeSharedFiles } from '@/shared/sharedFiles'
+import { isAcceptedFile, notifyLibraryChanged, onSharedItem, takeSharedItems, type SharedItem } from '@/shared/sharedFiles'
+import { saveArticleFromUrl, hostOf } from '@/articles/ArticleService'
 
 function App() {
   const [initialBookId, setInitialBookId] = useState<string | null | undefined>(undefined)
   const [isCheckingLastBook, setIsCheckingLastBook] = useState(true)
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
-  const [sharing, setSharing] = useState<{ name: string; error?: string } | null>(null)
+  const [sharing, setSharing] = useState<{ name: string; label?: string; error?: string; url?: string } | null>(null)
 
-  // Files shared to Skim (Android share sheet / Open with, or the PWA share target)
+  // Things shared to Skim: files (EPUB/PDF) and web pages, via the Android
+  // share sheet / Open with, or the PWA share target.
   useEffect(() => {
     let cancelled = false
-    const drain = async () => {
-      let files: File[] = []
-      try {
-        files = await takeSharedFiles()
-      } catch (err) {
-        console.error('Shared file read failed', err)
-        const message = err instanceof Error ? err.message : String(err)
-        setSharing({ name: 'shared file', error: message })
-      }
-      if (cancelled || files.length === 0) return
-      for (const file of files) {
-        if (!isAcceptedFile(file)) {
-          setSharing({ name: file.name, error: 'Only EPUB and PDF files can be added.' })
-          continue
+    const openBook = async (bookId: string) => {
+      await storageService.setKV('onboardingDone', true)
+      await storageService.setKV('lastOpenedBookId', bookId)
+      setNeedsOnboarding(false)
+      setInitialBookId(bookId)
+      notifyLibraryChanged()
+      setSharing(null)
+    }
+    const handle = async (item: SharedItem) => {
+      if (item.kind === 'file') {
+        if (!isAcceptedFile(item.file)) {
+          setSharing({ name: item.file.name, error: 'Only EPUB and PDF files can be added.' })
+          return
         }
-        setSharing({ name: file.name })
+        setSharing({ name: item.file.name, label: 'Adding to your library' })
         try {
-          const bookId = await importService.import(file)
-          await storageService.setKV('onboardingDone', true)
-          await storageService.setKV('lastOpenedBookId', bookId)
-          setNeedsOnboarding(false)
-          setInitialBookId(bookId)
-          notifyLibraryChanged()
-          setSharing(null)
+          await openBook(await importService.import(item.file))
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          setSharing({ name: file.name, error: message })
+          setSharing({ name: item.file.name, error: err instanceof Error ? err.message : String(err) })
         }
+        return
       }
+      setSharing({ name: item.title || hostOf(item.url), label: 'Saving article', url: item.url })
+      try {
+        const bookId = await saveArticleFromUrl(item.url, {
+          onStage: (stage, detail) =>
+            setSharing({
+              name: detail || item.title || hostOf(item.url),
+              label: stage === 'fetching' ? 'Fetching page' : stage === 'extracting' ? 'Reading the page' : 'Saving article',
+              url: item.url,
+            }),
+        })
+        await openBook(bookId)
+      } catch (err) {
+        setSharing({ name: item.title || hostOf(item.url), error: err instanceof Error ? err.message : String(err), url: item.url })
+      }
+    }
+    const drain = async () => {
+      let items: SharedItem[] = []
+      try {
+        items = await takeSharedItems()
+      } catch (err) {
+        console.error('Shared item read failed', err)
+        setSharing({ name: 'shared item', error: err instanceof Error ? err.message : String(err) })
+      }
+      if (cancelled || items.length === 0) return
+      for (const item of items) await handle(item)
       if (window.location.search.includes('shared=1')) {
         window.history.replaceState(null, '', '/')
       }
     }
     void drain()
-    const off = onSharedFile(() => void drain())
+    const off = onSharedItem(() => void drain())
     return () => {
       cancelled = true
       off()
@@ -95,9 +115,16 @@ function App() {
           <>
             <h2 className="text-lg font-extrabold">Couldn’t add {sharing.name}</h2>
             <p className="mt-2 text-sm font-semibold text-fg-muted dark:text-fg-muted-dark">{sharing.error}</p>
-            <button type="button" className="nb-btn nb-btn-main mt-5 w-full px-4 py-2.5 text-sm" onClick={() => setSharing(null)}>
-              OK
-            </button>
+            <div className="mt-5 flex gap-3">
+              {sharing.url ? (
+                <a href={sharing.url} target="_blank" rel="noreferrer" className="nb-btn nb-btn-neutral flex-1 px-4 py-2.5 text-sm">
+                  Open in browser
+                </a>
+              ) : null}
+              <button type="button" className="nb-btn nb-btn-main flex-1 px-4 py-2.5 text-sm" onClick={() => setSharing(null)}>
+                OK
+              </button>
+            </div>
           </>
         ) : (
           <div className="flex items-center gap-3">
@@ -105,7 +132,7 @@ function App() {
               <Loader2 className="h-5 w-5 animate-spin text-black" strokeWidth={2.5} />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-extrabold">Adding to your library</div>
+              <div className="text-sm font-extrabold">{sharing.label || 'Adding to your library'}</div>
               <div className="truncate text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">{sharing.name}</div>
             </div>
           </div>

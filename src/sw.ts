@@ -34,6 +34,14 @@ registerRoute(
       const form = await (event as FetchEvent).request.formData()
       const files = form.getAll('file').filter((f: FormDataEntryValue): f is File => f instanceof File)
       const cache = await caches.open(SHARE_INBOX_CACHE)
+      // A shared link arrives as url/text/title fields (Chrome puts the URL in text on some versions).
+      const link = { url: String(form.get('url') ?? ''), text: String(form.get('text') ?? ''), title: String(form.get('title') ?? '') }
+      if (link.url || link.text) {
+        await cache.put(
+          new Request(`/share-inbox/link-${Date.now()}`),
+          new Response(JSON.stringify(link), { headers: { 'content-type': 'application/json', 'x-kind': 'link' } })
+        )
+      }
       for (const file of files) {
         const key = `/share-inbox/${Date.now()}-${Math.random().toString(36).slice(2)}`
         await cache.put(

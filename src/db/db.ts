@@ -16,6 +16,10 @@ export interface SkimDB extends DBSchema {
       sizeBytes: number
       coverBlob?: Blob
       sourceId?: string
+      kind?: 'book' | 'article'
+      sourceUrl?: string
+      siteName?: string
+      excerpt?: string
     }
     indexes: { 'by-modified': number }
   }

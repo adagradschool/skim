@@ -4,7 +4,20 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 import { readFileSync } from 'fs'
 
+import { handleFetchPage } from './api/_lib/fetchPage.mjs'
+
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
+
+/** Serves /api/fetch in `vite dev` and `vite preview` with the same code Vercel runs. */
+const pageProxyPlugin = {
+  name: 'skim-page-proxy',
+  configureServer(server: { middlewares: { use: (fn: (req: any, res: any, next: () => void) => void) => void } }) {
+    server.middlewares.use((req, res, next) => (req.url?.startsWith('/api/fetch') ? handleFetchPage(req, res) : next()))
+  },
+  configurePreviewServer(server: { middlewares: { use: (fn: (req: any, res: any, next: () => void) => void) => void } }) {
+    server.middlewares.use((req, res, next) => (req.url?.startsWith('/api/fetch') ? handleFetchPage(req, res) : next()))
+  },
+}
 
 export default defineConfig({
   define: {
@@ -23,6 +36,7 @@ export default defineConfig({
     allowedHosts: ['.zrok.io'],
   },
   plugins: [
+    pageProxyPlugin,
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -45,6 +59,9 @@ export default defineConfig({
           method: 'POST',
           enctype: 'multipart/form-data',
           params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
             files: [{ name: 'file', accept: ['application/epub+zip', 'application/pdf', '.epub', '.pdf'] }],
           },
         },

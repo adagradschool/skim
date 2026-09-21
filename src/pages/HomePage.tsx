@@ -20,6 +20,8 @@ import { ReaderCard } from '@/components/ReaderCard'
 import { LIBRARY_CHANGED_EVENT } from '@/shared/sharedFiles'
 import { SettingsSheet } from '@/components/SettingsSheet'
 import { StorePage } from '@/store/StorePage'
+import { ArticlesPage } from '@/articles/ArticlesPage'
+import { Newspaper, ChevronRight } from 'lucide-react'
 
 interface LibraryEntry {
   id: string
@@ -60,6 +62,8 @@ export function HomePage() {
   const [profile, setProfile] = useState<ReaderProfile | null>(null)
   const [showCard, setShowCard] = useState(false)
   const [showStore, setShowStore] = useState(false)
+  const [showArticles, setShowArticles] = useState(false)
+  const [articles, setArticles] = useState<Book[]>([])
 
   useEffect(() => {
     let alive = true
@@ -113,7 +117,9 @@ export function HomePage() {
       setError(null)
       revokeCoverUrls()
 
-      const books = await storageService.getAllBooks()
+      const all = await storageService.getAllBooks()
+      const books = all.filter((b) => b.kind !== 'article')
+      setArticles(all.filter((b) => b.kind === 'article'))
       const items = await Promise.all(books.map((book) => buildLibraryEntry(book)))
 
       setEntries(items)
@@ -163,6 +169,21 @@ export function HomePage() {
   // Show reader if a book is selected
   if (readingBookId) {
     return <ReaderPage bookId={readingBookId} onExit={handleExitReader} openBookmarksOnMount={showBookmarksOnOpen} />
+  }
+
+  if (showArticles) {
+    return (
+      <ArticlesPage
+        onClose={() => {
+          setShowArticles(false)
+          void refreshLibrary()
+        }}
+        onRead={(bookId) => {
+          setShowArticles(false)
+          void handleOpenBook(bookId)
+        }}
+      />
+    )
   }
 
   if (showStore) {
@@ -231,10 +252,15 @@ export function HomePage() {
             </div>
             {error}
           </div>
-        ) : entries.length === 0 ? (
+        ) : entries.length === 0 && articles.length === 0 ? (
           <EmptyLibrary onUpload={() => setUploadOpen(true)} onStore={() => setShowStore(true)} />
         ) : (
           <ul className="space-y-4">
+            {articles.length > 0 ? (
+              <li>
+                <ArticlesFolder articles={articles} onOpen={() => setShowArticles(true)} />
+              </li>
+            ) : null}
             {entries.map((entry) => (
               <li key={entry.id}>
                 <LibraryCard
@@ -285,6 +311,39 @@ export function HomePage() {
         />
       ) : null}
     </div>
+  )
+}
+
+interface ArticlesFolderProps {
+  articles: Book[]
+  onOpen: () => void
+}
+
+/** The folder row on the library page. Articles never mix with books. */
+function ArticlesFolder({ articles, onOpen }: ArticlesFolderProps) {
+  const newest = [...articles].sort((a, b) => b.modifiedAt - a.modifiedAt)[0]
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="nb-box flex w-full items-center gap-4 bg-pink p-4 text-left text-black transition-[transform,box-shadow] duration-100 hover:translate-x-[2px] hover:translate-y-[2px] hover:[box-shadow:var(--shadow-nb-sm)] active:translate-x-[4px] active:translate-y-[4px] active:[box-shadow:var(--shadow-nb-none)] dark:bg-pink dark:text-black"
+      aria-label={`Articles, ${articles.length} saved`}
+    >
+      <span className="nb-box-flat flex h-20 w-16 shrink-0 items-center justify-center bg-white text-black">
+        <Newspaper className="h-7 w-7" strokeWidth={2.5} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="text-base font-extrabold">Articles</span>
+          <span className="nb-chip bg-white text-black">{articles.length}</span>
+        </span>
+        {newest ? (
+          <span className="mt-1 block truncate text-sm font-semibold opacity-80">{newest.title}</span>
+        ) : null}
+        <span className="mt-1 block text-xs font-bold uppercase tracking-wider opacity-70">Saved from the web</span>
+      </span>
+      <ChevronRight className="h-6 w-6 shrink-0" strokeWidth={3} />
+    </button>
   )
 }
 

@@ -27,7 +27,15 @@ import java.util.Deque;
 @CapacitorPlugin(name = "ShareReceiver")
 public class ShareReceiverPlugin extends Plugin {
 
-    private static final Deque<Uri> pending = new ArrayDeque<>();
+    /** Either a file URI or a shared link (url + optional title). */
+    private static final class Pending {
+        final Uri uri;
+        final String url;
+        final String title;
+        Pending(Uri uri, String url, String title) { this.uri = uri; this.url = url; this.title = title; }
+    }
+
+    private static final Deque<Pending> pending = new ArrayDeque<>();
     private static ShareReceiverPlugin instance;
 
     @Override
@@ -40,15 +48,23 @@ public class ShareReceiverPlugin extends Plugin {
         if (intent == null) return;
         String action = intent.getAction();
         Uri uri = null;
+        String url = null;
+        String title = null;
         if (Intent.ACTION_SEND.equals(action)) {
             uri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (uri == null) {
+                // A shared link: browsers put the URL (sometimes with the title) in EXTRA_TEXT.
+                String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+                title = intent.getStringExtra(Intent.EXTRA_SUBJECT);
+                if (text != null) url = text;
+            }
         } else if (Intent.ACTION_VIEW.equals(action)) {
             uri = intent.getData();
         }
-        if (uri == null) return;
+        if (uri == null && url == null) return;
 
         synchronized (pending) {
-            pending.add(uri);
+            pending.add(new Pending(uri, url, title));
         }
         if (instance != null) {
             instance.notifyListeners("fileShared", new JSObject(), true);
@@ -57,16 +73,24 @@ public class ShareReceiverPlugin extends Plugin {
 
     @PluginMethod
     public void getPendingFile(PluginCall call) {
-        Uri uri;
+        Pending item;
         synchronized (pending) {
-            uri = pending.poll();
+            item = pending.poll();
         }
         JSObject result = new JSObject();
-        if (uri == null) {
+        if (item == null) {
             result.put("path", JSObject.NULL);
             call.resolve(result);
             return;
         }
+        if (item.uri == null) {
+            result.put("path", JSObject.NULL);
+            result.put("url", item.url);
+            if (item.title != null) result.put("title", item.title);
+            call.resolve(result);
+            return;
+        }
+        Uri uri = item.uri;
 
         try {
             String name = displayName(uri);

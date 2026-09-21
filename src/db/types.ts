@@ -11,6 +11,14 @@ export interface Book {
   coverBlob?: Blob
   /** Where the book came from, e.g. "standardebooks:<id>". Absent for user uploads. */
   sourceId?: string
+  /** Books are the default; articles are saved web pages and live in their own folder. */
+  kind?: 'book' | 'article'
+  /** Original page URL for articles. */
+  sourceUrl?: string
+  /** Publisher/site name for articles. */
+  siteName?: string
+  /** One-line summary for articles. */
+  excerpt?: string
 }
 
 export interface BookAsset {
