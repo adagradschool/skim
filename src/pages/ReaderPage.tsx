@@ -52,7 +52,7 @@ export function ReaderPage({
   const [progressPercent, setProgressPercent] = useState(0)
   const [selectedFont, setSelectedFont] = useState<
     'inter' | 'literata' | 'merriweather'
-  >('literata')
+  >('merriweather')
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [showAddBookmark, setShowAddBookmark] = useState(false)
   const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE)

@@ -122,6 +122,8 @@ export function HomePage() {
       setArticles(all.filter((b) => b.kind === 'article'))
       const items = await Promise.all(books.map((book) => buildLibraryEntry(book)))
 
+      // Finished books sink to the bottom; everything else keeps recency order.
+      items.sort((a, b) => Number((a.progressPercent ?? 0) >= 100) - Number((b.progressPercent ?? 0) >= 100))
       setEntries(items)
     } catch (err) {
       console.error('Failed to load library', err)
@@ -240,7 +242,7 @@ export function HomePage() {
         </div>
       </header>
 
-      <main className="flex-1 px-6 pb-24">
+      <main className="flex-1 px-6 pb-32">
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin" strokeWidth={2.5} />
@@ -277,7 +279,7 @@ export function HomePage() {
 
       <button
         type="button"
-        className="nb-btn nb-btn-main fixed bottom-6 right-6 h-14 w-14"
+        className="nb-btn nb-btn-main fixed bottom-6 right-6 z-30 h-14 w-14"
         aria-label="Upload Document"
         onClick={() => setUploadOpen(true)}
       >
