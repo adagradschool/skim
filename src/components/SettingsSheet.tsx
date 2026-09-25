@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AlertTriangle, Check, Download, ExternalLink, Loader2, Moon, RefreshCw, Smartphone, Sun, Trash2 } from 'lucide-react'
 import { storageService } from '@/db/StorageService'
 import { useTheme, type ThemeSetting } from '@/hooks/useTheme'
-import { isNativeApp } from '@/platform'
+import { isNativeApp, isAndroidApp, isIosApp } from '@/platform'
 import { APP_VERSION, RELEASES_PAGE, fetchLatestRelease, refreshWebApp, type ReleaseInfo } from '@/updates'
 
 interface SettingsSheetProps {
@@ -120,7 +120,7 @@ export function SettingsSheet({ onClose }: SettingsSheetProps) {
               <div>
                 <div className="text-sm font-extrabold">Skim {APP_VERSION}</div>
                 <div className="text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">
-                  {isNativeApp ? 'Android app' : 'Web app'}
+                  {isAndroidApp ? 'Android app' : isIosApp ? 'iOS app' : 'Web app'}
                 </div>
               </div>
               <button
@@ -150,7 +150,7 @@ export function SettingsSheet({ onClose }: SettingsSheetProps) {
                     <div className="mt-0.5 text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">
                       {update.release.name} · {new Date(update.release.publishedAt).toLocaleDateString()}
                     </div>
-                    {isNativeApp ? (
+                    {isAndroidApp ? (
                       <a
                         href={update.release.apkUrl ?? update.release.pageUrl}
                         className="nb-btn nb-btn-lime mt-3 w-full px-4 py-2.5 text-sm"
@@ -159,9 +159,11 @@ export function SettingsSheet({ onClose }: SettingsSheetProps) {
                       </a>
                     ) : (
                       <p className="mt-2 text-xs font-semibold text-fg-muted dark:text-fg-muted-dark">
-                        {update.web === 'current'
-                          ? 'The site updates itself; reopen Skim to get it.'
-                          : 'Refreshing to the latest build…'}
+                        {isIosApp
+                          ? 'Update through TestFlight or the App Store.'
+                          : update.web === 'current'
+                            ? 'The site updates itself; reopen Skim to get it.'
+                            : 'Refreshing to the latest build…'}
                       </p>
                     )}
                   </>

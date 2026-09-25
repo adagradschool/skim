@@ -22,6 +22,7 @@ interface VolumeButtonsPlugin {
 
 const VolumeButtons = registerPlugin<VolumeButtonsPlugin>('VolumeButtons')
 const isNative = Capacitor.isNativePlatform()
+const isAndroid = Capacitor.getPlatform() === 'android'
 export const isNativeApp = isNative
 
 const VOLUME_UP_KEYS = new Set(['AudioVolumeUp', 'VolumeUp'])
@@ -52,9 +53,10 @@ export function useHardwareNav({ enabled, onNext, onPrevious }: HardwareNavOptio
   nextRef.current = onNext
   prevRef.current = onPrevious
 
-  // 1. Volume key events (where the browser forwards them)
+  // 1. Volume key events. Android only: iOS never exposes the rocker and
+  //    Apple rejects apps that repurpose it.
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !isAndroid) return
 
     // Volume down (the lower button, under the thumb) = next; volume up = previous.
     const handleKey = (event: KeyboardEvent) => {
@@ -74,7 +76,7 @@ export function useHardwareNav({ enabled, onNext, onPrevious }: HardwareNavOptio
 
   // 3. Native volume rocker (Capacitor Android)
   useEffect(() => {
-    if (!isNative) return
+    if (!isNative || !isAndroid) return
     VolumeButtons.setEnabled({ enabled }).catch(() => {
       /* plugin missing on this platform (e.g. iOS); the JS paths still apply */
     })
