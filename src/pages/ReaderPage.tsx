@@ -44,7 +44,6 @@ export function ReaderPage({
   const [error, setError] = useState<string | null>(null)
   const [bookTitle, setBookTitle] = useState<string>('')
   const [isAutoSwipeEnabled, setIsAutoSwipeEnabled] = useState(false)
-  const [isHardwareNavEnabled, setIsHardwareNavEnabled] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showIndex, setShowIndex] = useState(false)
   const [showControls, setShowControls] = useState(false)
@@ -157,12 +156,6 @@ export function ReaderPage({
         const autoAdvanceSetting =
           await storageService.getKV('autoAdvanceEnabled')
         setIsAutoSwipeEnabled(autoAdvanceSetting ?? true)
-
-        // Default on in the Android app (the rocker is captured natively);
-        // off in browsers, where it can only reach headset/remote buttons.
-        const hardwareNavSetting =
-          await storageService.getKV('hardwareNavEnabled')
-        setIsHardwareNavEnabled(hardwareNavSetting ?? isNativeApp)
 
         const savedFont = await storageService.getKV('selectedFont')
         if (
@@ -322,7 +315,8 @@ export function ReaderPage({
 
   // Hardware buttons (volume rocker where exposed, headset / BT remotes via Media Session)
   useHardwareNav({
-    enabled: isHardwareNavEnabled && !loading && !isPanelOpen,
+    // Always on in the Android app (the rocker is captured natively); never in browsers.
+    enabled: isNativeApp && !loading && !isPanelOpen,
     onNext: () => {
       goToNext()
       setIsPaused(false)
@@ -806,23 +800,6 @@ export function ReaderPage({
                   await storageService.setKV('autoAdvanceEnabled', newValue)
                 }}
               />
-            </div>
-
-            {/* Hardware buttons toggle */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-bold">Volume buttons turn pages</label>
-                <Toggle
-                  checked={isHardwareNavEnabled}
-                  onChange={async (newValue) => {
-                    setIsHardwareNavEnabled(newValue)
-                    await storageService.setKV('hardwareNavEnabled', newValue)
-                  }}
-                />
-              </div>
-              <p className="mt-2 text-xs font-semibold leading-snug text-fg-muted dark:text-fg-muted-dark">
-                Volume down = next slide, volume up = previous.
-              </p>
             </div>
 
             {/* Reading time status */}
