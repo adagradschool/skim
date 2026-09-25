@@ -3,7 +3,8 @@ import { App as KonstaApp } from 'konsta/react'
 import { HomePage } from '@/pages/HomePage'
 import { InstallPrompt } from '@/components/InstallPrompt'
 import { ReaderPage } from '@/pages/ReaderPage'
-import { storageService } from '@/db/StorageService'
+import { storageService, indexedDbStorage, sqliteStorage } from '@/db/StorageService'
+import { migrateIndexedDbToSqlite } from '@/db/migrate'
 import { Loader2 } from 'lucide-react'
 import { Onboarding } from '@/onboarding/Onboarding'
 import { importService } from '@/importer/ImportService'
@@ -14,6 +15,7 @@ function App() {
   const [initialBookId, setInitialBookId] = useState<string | null | undefined>(undefined)
   const [isCheckingLastBook, setIsCheckingLastBook] = useState(true)
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const [migrating, setMigrating] = useState<string | null>(null)
   const [sharing, setSharing] = useState<{ name: string; label?: string; error?: string; url?: string } | null>(null)
 
   // Things shared to Skim: files (EPUB/PDF) and web pages, via the Android
@@ -82,6 +84,20 @@ function App() {
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
+        // Android app: move the library out of the evictable WebView store, once.
+        if (sqliteStorage) {
+          try {
+            const report = await migrateIndexedDbToSqlite(indexedDbStorage, sqliteStorage, (done, total, title) => {
+              if (total > 0 && done < total) setMigrating(`Securing your library… ${done + 1} of ${total}: ${title}`)
+            })
+            if (report.migrated) console.log('Migrated to SQLite:', report)
+          } catch (err) {
+            console.error('Migration failed; continuing with SQLite', err)
+          } finally {
+            setMigrating(null)
+          }
+        }
+
         const onboarded = await storageService.getKV('onboardingDone')
         if (!onboarded) {
           // Existing libraries skip onboarding; only a truly fresh install sees it.
@@ -144,10 +160,13 @@ function App() {
   if (isCheckingLastBook) {
     return (
       <KonstaApp theme="ios" safeAreas>
-        <div className="flex h-screen items-center justify-center bg-bg dark:bg-bg-dark">
+        <div className="flex h-screen flex-col items-center justify-center gap-5 bg-bg px-8 dark:bg-bg-dark">
           <div className="nb-box flex h-16 w-16 items-center justify-center bg-yellow dark:bg-yellow">
             <Loader2 className="h-8 w-8 animate-spin text-black" strokeWidth={2.5} />
           </div>
+          {migrating ? (
+            <p className="max-w-xs text-center text-xs font-extrabold uppercase tracking-widest text-fg-muted dark:text-fg-muted-dark">{migrating}</p>
+          ) : null}
         </div>
         <InstallPrompt />
         {sharingOverlay}

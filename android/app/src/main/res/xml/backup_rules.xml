@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android Auto Backup (API < 31). Back up the SQLite library, not the WebView's
+     evictable copy, so the backup stays small and under the 25 MB cap. -->
+<full-backup-content>
+    <include domain="database" path="skim.db" />
+    <include domain="database" path="skim.db-wal" />
+    <include domain="database" path="skim.db-shm" />
+    <exclude domain="root" path="app_webview" />
+    <exclude domain="root" path="cache" />
+</full-backup-content>

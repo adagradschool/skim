@@ -1,10 +1,15 @@
 import { getDB } from './db'
 import type { Book, BookAsset, Chapter, Slide, Progress, Bookmark, KVPair } from './types'
+import type { IStorage } from './IStorage'
+import { SqliteStorage } from './SqliteStorage'
+import { capacitorSqlBridge } from './sqlBridge'
+import { isNativeApp } from '@/platform'
 
 /**
- * Storage service for managing all IndexedDB operations
+ * IndexedDB-backed storage: used by the website. The Android app uses
+ * SqliteStorage (see below) because the WebView can evict IndexedDB.
  */
-export class StorageService {
+export class IndexedDbStorage implements IStorage {
   // Books
   async saveBook(book: Book): Promise<void> {
     const db = await getDB()
@@ -314,5 +319,15 @@ export class StorageService {
   }
 }
 
-// Singleton instance
-export const storageService = new StorageService()
+/** Kept for existing tests and callers. */
+export const StorageService = IndexedDbStorage
+export type StorageService = IndexedDbStorage
+
+/** Storage for the website: still IndexedDB. */
+export const indexedDbStorage: IStorage = new IndexedDbStorage()
+
+/** Storage for the Android app: SQLite in private app files. */
+export const sqliteStorage: IStorage | null = isNativeApp ? new SqliteStorage(capacitorSqlBridge) : null
+
+// Singleton instance: the backend for this platform.
+export const storageService: IStorage = sqliteStorage ?? indexedDbStorage

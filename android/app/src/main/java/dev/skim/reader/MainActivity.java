@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(VolumeButtonsPlugin.class);
         registerPlugin(ShareReceiverPlugin.class);
+        registerPlugin(SqlitePlugin.class);
         super.onCreate(savedInstanceState);
         ShareReceiverPlugin.onIntent(getIntent());
     }

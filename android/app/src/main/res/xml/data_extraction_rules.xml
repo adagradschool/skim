@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ backup and device-transfer rules: same policy as backup_rules.xml. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="skim.db" />
+        <include domain="database" path="skim.db-wal" />
+        <include domain="database" path="skim.db-shm" />
+        <exclude domain="root" path="app_webview" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="skim.db" />
+        <include domain="database" path="skim.db-wal" />
+        <include domain="database" path="skim.db-shm" />
+        <exclude domain="root" path="app_webview" />
+    </device-transfer>
+</data-extraction-rules>
